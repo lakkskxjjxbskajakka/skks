@@ -35,7 +35,7 @@ jobs:
       PROXY_SERVER_KEY: local-test-key
       PROXY_WEBUI_USER: admin
       PROXY_WEBUI_PASS: changeme-changeme
-      WARP_POOL_SIZE: '16'
+      WARP_POOL_SIZE: '8'
       OPENCODE_PORT: ${{ github.event.inputs.opencode_port }}
       PROXY_PORT: ${{ github.event.inputs.proxy_port }}
       CADDY_VERSION: '2.8.4'
@@ -73,6 +73,18 @@ jobs:
           npm install -g opencode-ai@latest || npm install -g opencode@latest
           opencode --version || true
 
+      - name: نصب Caddy (دانلود مستقیم از GitHub Releases)
+        run: |
+          set -euo pipefail
+          ARCH="amd64"
+          URL="https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_linux_${ARCH}.tar.gz"
+          echo "⬇️ دانلود Caddy از: $URL"
+          curl -fsSL "$URL" -o /tmp/caddy.tar.gz
+          tar -xzf /tmp/caddy.tar.gz -C /tmp caddy
+          sudo install -m 0755 /tmp/caddy /usr/local/bin/caddy
+          rm -f /tmp/caddy /tmp/caddy.tar.gz
+          caddy version
+
       # ─────────────────────────────────────────────
       # راه‌اندازی opencode-unlimited-proxy (حالت استاندارد با WARP)
       # ─────────────────────────────────────────────
@@ -83,9 +95,6 @@ jobs:
           git clone https://github.com/ebouther/opencode-unlimited-proxy.git /tmp/opencode-unlimited-proxy
           cd /tmp/opencode-unlimited-proxy/stack
 
-          # ساخت .env با مقادیر پیش‌فرض پروژه (هاردکد شده)
-          # WARP_ACCEPT_TOS=1 برای فعال‌سازی WARP
-          # بدون WARP_SOURCE_IPV6 (چون IPv6 مسیریابی‌شده در Actions موجود نیست)
           cat > .env <<EOF
           WARP_ACCEPT_TOS=1
           WARP_SOURCE_IPV6=
@@ -95,26 +104,50 @@ jobs:
           WARP_POOL_SIZE=${WARP_POOL_SIZE}
           EOF
 
-          echo "🐳 اجرای Docker Compose (حالت host + WARP داخلی)..."
+          echo "🐳 اجرای Docker Compose..."
           docker compose up -d
 
-          echo "⏳ انتظار برای آماده شدن WARP و پروکسی (حداکثر ۹۰ ثانیه)..."
-          for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:8080/healthz > /tmp/healthz.json 2>/dev/null; then
+          # صبر اولیه برای اینکه کانتینرها واقعاً شروع کنند
+          sleep 10
+          echo "----- وضعیت کانتینرها -----"
+          docker compose ps || true
+          echo "----- لاگ ۵۰ خط آخر ofu-engine -----"
+          docker compose logs --tail=50 ofu-engine || true
+
+          echo "⏳ انتظار برای آماده شدن WARP و پروکسی (حداکثر ۵ دقیقه)..."
+          READY=0
+          for i in $(seq 1 60); do
+            if curl -sf --max-time 3 http://127.0.0.1:8080/healthz > /tmp/healthz.json 2>/dev/null; then
               WARP_STATUS=$(python3 -c "import json;print(json.load(open('/tmp/healthz.json')).get('warp',{}).get('status',''))" 2>/dev/null || echo "")
               ACTIVE=$(python3 -c "import json;print(json.load(open('/tmp/healthz.json')).get('warp',{}).get('active',0))" 2>/dev/null || echo "0")
+              echo "  [$i/60] warp.status=$WARP_STATUS active=$ACTIVE"
               if [ "$WARP_STATUS" = "ready" ]; then
                 echo "✅ پروکسی و WARP آماده هستند (فعال: $ACTIVE خروجی)"
+                READY=1
                 break
               fi
+            else
+              echo "  [$i/60] healthz هنوز پاسخ نمی‌دهد..."
             fi
-            echo "  تلاش $i/30..."
-            sleep 3
+            # هر ۵۰ ثانیه لاگ کانتینر را چاپ کن
+            if [ $((i % 10)) -eq 0 ]; then
+              echo "----- لاگ ofu-engine (پس از ${i} تلاش) -----"
+              docker compose logs --tail=30 ofu-engine || true
+            fi
+            sleep 5
           done
 
-          # بررسی نهایی
-          echo "وضعیت نهایی healthz:"
-          curl -s http://127.0.0.1:8080/healthz | python3 -m json.tool || true
+          echo "----- وضعیت نهایی healthz -----"
+          curl -s --max-time 5 http://127.0.0.1:8080/healthz | python3 -m json.tool || echo "(healthz پاسخ نداد)"
+
+          if [ "$READY" != "1" ]; then
+            echo "❌ پروکسی/WARP در زمان تعیین‌شده آماده نشد."
+            echo "----- لاگ کامل ofu-engine -----"
+            docker compose logs --tail=200 ofu-engine || true
+            echo "----- لاگ کامل config-init -----"
+            docker compose logs --tail=100 config-init || true
+            exit 1
+          fi
 
       # ─────────────────────────────────────────────
       # ساخت کانفیگ OpenCode برای اتصال به پروکسی
@@ -290,7 +323,6 @@ jobs:
             REMAINING=$((END_TIME - $(date +%s)))
             echo "[$(date +%H:%M:%S)] باقی‌مانده: $((REMAINING/60))m $((REMAINING%60))s"
 
-            # بررسی سلامت پروکسی (Docker Compose)
             PROXY_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://127.0.0.1:8080/healthz" || echo "000")
             if [ "$PROXY_HEALTH" != "200" ]; then
               echo "⚠️ پروکسی پاسخ نمی‌دهد - ری‌استارت Docker Compose..."
