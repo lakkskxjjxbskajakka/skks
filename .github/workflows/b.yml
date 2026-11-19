@@ -29,197 +29,224 @@ jobs:
 
           Write-Host "Cloudflared installed successfully."
 
-      - name: Start LarpCode Server
+      - name: Run LarpCode + Cloudflare Tunnel (355 Minutes)
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+
           $larpcode = "$env:LOCALAPPDATA\Programs\LarpCode CLI\bin\larpcode.exe"
-
-          if (!(Test-Path $larpcode)) {
-              throw "LarpCode executable not found."
-          }
-
-          $server = Start-Process `
-            -FilePath $larpcode `
-            -ArgumentList @(
-              "serve",
-              "--hostname", "127.0.0.1",
-              "--port", "3000"
-            ) `
-            -PassThru `
-            -NoNewWindow `
-            -RedirectStandardOutput "$env:RUNNER_TEMP\larpcode-out.log" `
-            -RedirectStandardError "$env:RUNNER_TEMP\larpcode-err.log"
-
-          "LARPCODE_PID=$($server.Id)" | Out-File $env:GITHUB_ENV -Append
-
-          $ready = $false
-
-          for ($i = 0; $i -lt 60; $i++) {
-              try {
-                  $response = Invoke-WebRequest `
-                    -Uri "http://127.0.0.1:3000/" `
-                    -TimeoutSec 3
-
-                  $ready = $true
-                  break
-              }
-              catch {
-                  Start-Sleep -Seconds 2
-              }
-          }
-
-          if (!$ready) {
-              Write-Host "LarpCode stdout:"
-              Get-Content "$env:RUNNER_TEMP\larpcode-out.log" -ErrorAction SilentlyContinue
-
-              Write-Host "LarpCode stderr:"
-              Get-Content "$env:RUNNER_TEMP\larpcode-err.log" -ErrorAction SilentlyContinue
-
-              throw "LarpCode server failed to start."
-          }
-
-          Write-Host "LarpCode server is ONLINE."
-
-      - name: Start Cloudflare Tunnel
-        shell: pwsh
-        run: |
           $cloudflared = "$env:RUNNER_TEMP\cloudflared.exe"
 
-          $tunnel = Start-Process `
-            -FilePath $cloudflared `
-            -ArgumentList @(
-              "tunnel",
-              "--url", "http://127.0.0.1:3000",
-              "--no-autoupdate"
-            ) `
-            -PassThru `
-            -NoNewWindow `
-            -RedirectStandardOutput "$env:RUNNER_TEMP\tunnel-out.log" `
-            -RedirectStandardError "$env:RUNNER_TEMP\tunnel-err.log"
+          $server = $null
+          $tunnel = $null
 
-          "TUNNEL_PID=$($tunnel.Id)" | Out-File $env:GITHUB_ENV -Append
+          $serverOut = "$env:RUNNER_TEMP\larpcode-out.log"
+          $serverErr = "$env:RUNNER_TEMP\larpcode-err.log"
+          $tunnelOut = "$env:RUNNER_TEMP\tunnel-out.log"
+          $tunnelErr = "$env:RUNNER_TEMP\tunnel-err.log"
 
-          $url = $null
-
-          for ($i = 0; $i -lt 60; $i++) {
-
-              $logs = @(
-                  Get-Content "$env:RUNNER_TEMP\tunnel-out.log" -ErrorAction SilentlyContinue
-                  Get-Content "$env:RUNNER_TEMP\tunnel-err.log" -ErrorAction SilentlyContinue
+          function Test-TcpPort {
+              param(
+                  [string]$HostName,
+                  [int]$Port
               )
 
-              $match = $logs | Select-String `
-                -Pattern 'https://[a-zA-Z0-9-]+\.trycloudflare\.com'
+              $client = [System.Net.Sockets.TcpClient]::new()
 
-              if ($match) {
-                  $url = [regex]::Match(
-                    $match[0].Line,
-                    'https://[a-zA-Z0-9-]+\.trycloudflare\.com'
-                  ).Value
-
-                  break
-              }
-
-              if ($tunnel.HasExited) {
-                  throw "Cloudflare Tunnel exited unexpectedly."
-              }
-
-              Start-Sleep -Seconds 2
-          }
-
-          if (!$url) {
-              Write-Host "Tunnel logs:"
-              Get-Content "$env:RUNNER_TEMP\tunnel-err.log" -ErrorAction SilentlyContinue
-              throw "Cloudflare URL was not generated."
-          }
-
-          "TUNNEL_URL=$url" | Out-File $env:GITHUB_ENV -Append
-
-          Write-Host ""
-          Write-Host "======================================"
-          Write-Host "LARPCODE PUBLIC URL:"
-          Write-Host $url
-          Write-Host "======================================"
-
-          @"
-          ## LarpCode Public Server
-
-          **URL:** $url
-
-          **Duration:** 355 minutes
-
-          **Status:** Running
-          "@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
-
-      - name: Keep Tunnel Alive (355 Minutes)
-        shell: pwsh
-        run: |
-          Write-Host "LarpCode Public URL:"
-          Write-Host $env:TUNNEL_URL
-
-          $end = (Get-Date).AddMinutes(355)
-          $failedChecks = 0
-
-          while ((Get-Date) -lt $end) {
-
-              $remaining = [math]::Ceiling(
-                  ($end - (Get-Date)).TotalMinutes
-              )
-
-              # Check LarpCode HTTP server
               try {
-                  $response = Invoke-WebRequest `
-                    -Uri "http://127.0.0.1:3000/" `
-                    -TimeoutSec 10
+                  $async = $client.BeginConnect(
+                      $HostName,
+                      $Port,
+                      $null,
+                      $null
+                  )
 
-                  $serverStatus = "ONLINE"
+                  if (!$async.AsyncWaitHandle.WaitOne(1000)) {
+                      return $false
+                  }
+
+                  $client.EndConnect($async)
+                  return $true
               }
               catch {
-                  $serverStatus = "OFFLINE"
+                  return $false
               }
-
-              # Check Cloudflare process
-              $tunnelProcess = Get-Process `
-                -Id $env:TUNNEL_PID `
-                -ErrorAction SilentlyContinue
-
-              if (!$tunnelProcess) {
-                  throw "Cloudflare Tunnel process stopped!"
-              }
-
-              if ($serverStatus -eq "OFFLINE") {
-                  $failedChecks++
-
-                  Write-Host "LarpCode HTTP check failed: $failedChecks"
-
-                  if ($failedChecks -ge 3) {
-                      throw "LarpCode server is unreachable."
-                  }
-              }
-              else {
-                  $failedChecks = 0
-              }
-
-              Write-Host "LarpCode: $serverStatus | Tunnel: ONLINE | Remaining: $remaining minutes"
-
-              Start-Sleep -Seconds 30
-          }
-
-          Write-Host "355 minutes completed successfully!"
-
-      - name: Stop Services
-        if: always()
-        shell: pwsh
-        run: |
-          foreach ($id in @($env:TUNNEL_PID, $env:LARPCODE_PID)) {
-              if ($id) {
-                  $process = Get-Process -Id $id -ErrorAction SilentlyContinue
-
-                  if ($process) {
-                      Stop-Process -Id $id -Force
-                      Write-Host "Stopped process $id"
-                  }
+              finally {
+                  $client.Dispose()
               }
           }
 
-          Write-Host "Cleanup completed."
+          try {
+              # Start LarpCode
+              Write-Host "Starting LarpCode..."
+
+              $server = Start-Process `
+                  -FilePath $larpcode `
+                  -ArgumentList @(
+                      "serve",
+                      "--hostname", "127.0.0.1",
+                      "--port", "3000"
+                  ) `
+                  -PassThru `
+                  -NoNewWindow `
+                  -RedirectStandardOutput $serverOut `
+                  -RedirectStandardError $serverErr
+
+              # Wait for server
+              $ready = $false
+
+              for ($i = 0; $i -lt 60; $i++) {
+                  $server.Refresh()
+
+                  if ($server.HasExited) {
+                      throw "LarpCode process exited."
+                  }
+
+                  if (Test-TcpPort "127.0.0.1" 3000) {
+                      $ready = $true
+                      break
+                  }
+
+                  Start-Sleep -Seconds 2
+              }
+
+              if (!$ready) {
+                  Write-Host "LarpCode logs:"
+                  Get-Content $serverErr -ErrorAction SilentlyContinue
+                  throw "LarpCode server failed to start."
+              }
+
+              Write-Host "LarpCode is ONLINE!"
+
+              # Start Cloudflare Tunnel
+              Write-Host "Starting Cloudflare Tunnel..."
+
+              $tunnel = Start-Process `
+                  -FilePath $cloudflared `
+                  -ArgumentList @(
+                      "tunnel",
+                      "--url", "http://127.0.0.1:3000",
+                      "--no-autoupdate"
+                  ) `
+                  -PassThru `
+                  -NoNewWindow `
+                  -RedirectStandardOutput $tunnelOut `
+                  -RedirectStandardError $tunnelErr
+
+              # Wait for public URL
+              $publicUrl = $null
+
+              for ($i = 0; $i -lt 90; $i++) {
+                  $tunnel.Refresh()
+
+                  if ($tunnel.HasExited) {
+                      Get-Content $tunnelErr -ErrorAction SilentlyContinue
+                      throw "Cloudflare Tunnel exited unexpectedly."
+                  }
+
+                  $logs = @(
+                      Get-Content $tunnelOut -ErrorAction SilentlyContinue
+                      Get-Content $tunnelErr -ErrorAction SilentlyContinue
+                  )
+
+                  foreach ($line in $logs) {
+                      if ($line -match 'https://[a-zA-Z0-9-]+\.trycloudflare\.com') {
+                          $publicUrl = $Matches[0]
+                          break
+                      }
+                  }
+
+                  if ($publicUrl) {
+                      break
+                  }
+
+                  Start-Sleep -Seconds 2
+              }
+
+              if (!$publicUrl) {
+                  Get-Content $tunnelErr -ErrorAction SilentlyContinue
+                  throw "Could not obtain Cloudflare URL."
+              }
+
+              # Display public URL
+              Write-Host ""
+              Write-Host "=========================================="
+              Write-Host "       LARPCODE PUBLIC SERVER"
+              Write-Host "=========================================="
+              Write-Host $publicUrl
+              Write-Host "=========================================="
+
+              @"
+              ## LarpCode Public Server
+
+              **URL:** $publicUrl
+
+              **Duration:** 355 minutes
+
+              **Status:** ONLINE
+              "@ | Out-File $env:GITHUB_STEP_SUMMARY -Append
+
+              # Keep both processes alive
+              Write-Host ""
+              Write-Host "Keeping services alive for 355 minutes..."
+
+              $end = (Get-Date).AddMinutes(355)
+              $failedChecks = 0
+
+              while ((Get-Date) -lt $end) {
+
+                  $server.Refresh()
+                  $tunnel.Refresh()
+
+                  if ($tunnel.HasExited) {
+                      Get-Content $tunnelErr -ErrorAction SilentlyContinue
+                      throw "Cloudflare Tunnel stopped!"
+                  }
+
+                  if ($server.HasExited) {
+                      throw "LarpCode process stopped!"
+                  }
+
+                  if (Test-TcpPort "127.0.0.1" 3000) {
+                      $failedChecks = 0
+                      $serverStatus = "ONLINE"
+                  }
+                  else {
+                      $failedChecks++
+                      $serverStatus = "OFFLINE"
+
+                      if ($failedChecks -ge 3) {
+                          throw "LarpCode server is unreachable."
+                      }
+                  }
+
+                  $remaining = [math]::Ceiling(
+                      ($end - (Get-Date)).TotalMinutes
+                  )
+
+                  Write-Host "LarpCode: $serverStatus | Cloudflare: ONLINE | Remaining: $remaining minutes"
+
+                  Start-Sleep -Seconds 30
+              }
+
+              Write-Host ""
+              Write-Host "355 MINUTES COMPLETED SUCCESSFULLY!"
+
+          }
+          finally {
+              # Cleanup
+              Write-Host "Stopping services..."
+
+              foreach ($process in @($tunnel, $server)) {
+                  if ($null -ne $process) {
+                      $process.Refresh()
+
+                      if (!$process.HasExited) {
+                          Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                          Write-Host "Stopped PID: $($process.Id)"
+                      }
+                  }
+              }
+
+              Write-Host "Cleanup completed."
+          }
