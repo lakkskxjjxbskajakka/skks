@@ -16,7 +16,11 @@ jobs:
         shell: pwsh
         run: |
           irm https://github.com/Tazmyan/LarpCode/releases/latest/download/install-cli.ps1 | iex
-
+      - name: Inspect LarpCode Serve
+        shell: pwsh
+        run: |
+          $larpcode = "$env:LOCALAPPDATA\Programs\LarpCode CLI\bin\larpcode.exe"
+          & $larpcode serve --help
       - name: Run LarpCode Help
         shell: pwsh
         run: |
