@@ -1,0 +1,248 @@
+name: OpenCode Unlimited Web (Standard Edition)
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'مدت زمان اجرا (دقیقه)'
+        required: true
+        default: '355'
+      opencode_port:
+        description: 'پورت داخلی OpenCode Web'
+        required: true
+        default: '4096'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: opencode-unlimited-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  opencode-unlimited:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    env:
+      OPENCODE_PORT: ${{ github.event.inputs.opencode_port }}
+      PROXY_PORT: ${{ github.event.inputs.opencode_port }}
+
+    steps:
+      - name: Checkout full repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: تنظیم Git identity + مسیرهای امن
+        run: |
+          git config user.name  "opencode-bot"
+          git config user.email "opencode-bot@users.noreply.github.com"
+
+          LOG_DIR="${RUNNER_TEMP:-/tmp}/opencode-logs"
+          mkdir -p "$LOG_DIR"
+          echo "LOG_DIR=$LOG_DIR" >> "$GITHUB_ENV"
+
+          CONFIG_ROOT="${RUNNER_TEMP:-/tmp}/opencode-config"
+          mkdir -p "$CONFIG_ROOT/opencode"
+          echo "XDG_CONFIG_HOME=$CONFIG_ROOT" >> "$GITHUB_ENV"
+
+          printf '\n# === OpenCode runner artifacts (auto) ===\n*.log\nopencode-url.txt\n.opencode/\nopencode.json\n.env\n.env.*\n' >> .gitignore
+
+      - name: نصب Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: نصب OpenCode
+        run: |
+          set -euo pipefail
+          npm install -g opencode-ai@latest || npm install -g opencode@latest
+          opencode --version || true
+
+      - name: 🔓 کلون و نصب OpenCode-Unlimited
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP:-/tmp}"
+          git clone https://github.com/Tazmyan/OpenCode-Unlimited.git
+          cd OpenCode-Unlimited
+          chmod +x install.sh bin/opencode-unlimited 2>/dev/null || true
+          
+          # نصب کامل (بدون --no-path) تا تمام subcommand ها از جمله watch ثبت شوند
+          bash install.sh
+          
+          BIN_DIR="${RUNNER_TEMP:-/tmp}/OpenCode-Unlimited/bin"
+          echo "$BIN_DIR" >> $GITHUB_PATH
+          echo "UNLIMITED_BIN=$BIN_DIR" >> $GITHUB_ENV
+
+      - name: 🛡️ راه‌اندازی موتور بینهایت (Setup استاندارد)
+        run: |
+          set -euo pipefail
+          # اجرای setup کامل طبق مستندات رسمی
+          # -NoStart: watcher را استارت نمی‌زند (در Step بعدی دستی استارت می‌زنیم)
+          # -NoProbe: از مصرف پیام تستی جلوگیری می‌کند
+          opencode-unlimited on -NoStart -NoProbe || {
+            echo "⚠️ setup با خطا مواجه شد، ادامه می‌دهیم..."
+          }
+          
+          opencode-unlimited status || true
+          opencode-unlimited identity || true
+
+      - name: 💻 اجرای OpenCode Serve
+        run: |
+          set -euo pipefail
+          # ⚠️ نکته کلیدی: stdout را redirect نمی‌کنیم تا OpenCode لاگ را در مسیر استاندارد
+          # (~/.local/share/opencode/log/) بنویسد و Watcher داخلی بتواند آن را بخواند
+          nohup opencode serve --port "$OPENCODE_PORT" --hostname 127.0.0.1 > /dev/null 2>&1 &
+          echo "OPENCODE_PID=$!" >> "$GITHUB_ENV"
+
+          for i in $(seq 1 30); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 "http://127.0.0.1:$OPENCODE_PORT" || echo "000")
+            if echo "$CODE" | grep -qE '200|30[0-9]|40[0-9]|426'; then
+              echo "✅ OpenCode Serve آماده است (HTTP $CODE)"
+              break
+            fi
+            echo "⏳ انتظار... ($i/30) - کد: $CODE"
+            sleep 2
+          done
+
+      - name: 👁️ استارت Watcher استاندارد پروژه
+        run: |
+          set -euo pipefail
+          # Watcher رسمی پروژه که لاگ استاندارد OpenCode را دنبال می‌کند
+          # -follow: لاگ را به صورت زنده دنبال می‌کند
+          # -auto: به محض دیدن محدودیت، چرخش خودکار انجام می‌دهد
+          nohup opencode-unlimited watch -follow -auto > "$LOG_DIR/watcher.log" 2>&1 &
+          echo "WATCHER_PID=$!" >> "$GITHUB_ENV"
+          echo "✅ Watcher استاندارد پروژه استارت شد"
+
+      - name: راه‌اندازی تونل Cloudflare
+        run: |
+          set -euo pipefail
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+
+          nohup ./cloudflared tunnel --url "http://127.0.0.1:${PROXY_PORT}" --no-autoupdate > "$LOG_DIR/cloudflare.log" 2>&1 &
+          echo "CLOUDFLARED_PID=$!" >> "$GITHUB_ENV"
+
+          sleep 8
+          TUNNEL_URL=$(grep -oP 'https://[a-zA-Z0-9.-]+.trycloudflare.com' "$LOG_DIR/cloudflare.log" | head -n1 || true)
+          if [ -z "$TUNNEL_URL" ]; then
+            echo "❌ خطا در ساخت تونل"
+            cat "$LOG_DIR/cloudflare.log"
+            exit 1
+          fi
+          echo "✅ تونل: $TUNNEL_URL"
+          echo "TUNNEL_URL=$TUNNEL_URL" >> "$GITHUB_ENV"
+          echo "$TUNNEL_URL" > opencode-url.txt
+
+      - name: نمایش خلاصه
+        run: |
+          {
+            echo "## 🌐 OpenCode Unlimited Web (Standard Edition)"
+            echo ""
+            echo "- **URL:** ${{ env.TUNNEL_URL }}"
+            echo "- **Bypass Engine:** Tazmyan/OpenCode-Unlimited"
+            echo "- **Watcher:** استاندارد پروژه (watch -follow -auto)"
+            echo "- **Duration:** ${{ github.event.inputs.duration }} دقیقه"
+            echo "- **Status:** 🟢 Active"
+            echo ""
+            echo "### 📋 روش استاندارد به کار رفته:"
+            echo "- ✅ `opencode-unlimited on -NoStart -NoProbe` برای setup اولیه"
+            echo "- ✅ `opencode serve` بدون redirect (برای حفظ مسیر استاندارد لاگ)"
+            echo "- ✅ `opencode-unlimited watch -follow -auto` به عنوان Watcher رسمی"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 🛡️ نگهبانی سرویس‌ها (Tunnel + OpenCode)
+        run: |
+          set -uo pipefail
+          DURATION="${{ github.event.inputs.duration }}"
+          END_TIME=$(date -d "$DURATION minutes" +%s)
+          TUNNEL_URL="${{ env.TUNNEL_URL }}"
+
+          while [ "$(date +%s)" -lt "$END_TIME" ]; do
+            REMAINING=$((END_TIME - $(date +%s)))
+            echo "[$(date +%H:%M:%S)] باقی‌مانده: $((REMAINING/60))m $((REMAINING%60))s"
+
+            # بررسی سلامت OpenCode Serve
+            OC=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://127.0.0.1:${OPENCODE_PORT}" || echo "000")
+            if [ "$OC" = "000" ]; then
+              echo "⚠️ OpenCode پاسخ نمی‌دهد - ری‌استارت..."
+              pkill -f "opencode serve" || true
+              sleep 2
+              nohup opencode serve --port "$OPENCODE_PORT" --hostname 127.0.0.1 > /dev/null 2>&1 &
+              sleep 5
+            fi
+
+            # بررسی سلامت تونل Cloudflare
+            T=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "$TUNNEL_URL" || echo "000")
+            if [ "$T" = "000" ] || [ "$T" = "502" ] || [ "$T" = "530" ]; then
+              echo "⚠️ تونل مشکل دارد (HTTP $T) - بازسازی..."
+              pkill -f cloudflared || true
+              sleep 2
+              nohup ./cloudflared tunnel --url "http://127.0.0.1:${PROXY_PORT}" --no-autoupdate > "$LOG_DIR/cloudflare.log" 2>&1 &
+              sleep 8
+              NEW=$(grep -oP 'https://[a-zA-Z0-9.-]+.trycloudflare.com' "$LOG_DIR/cloudflare.log" | head -n1 || true)
+              if [ -n "$NEW" ]; then
+                TUNNEL_URL="$NEW"
+                echo "$NEW" > opencode-url.txt
+                echo "🔄 آدرس جدید: $NEW"
+              fi
+            fi
+
+            sleep 30
+          done
+
+          echo "⏰ پایان زمان اجرا. پاکسازی..."
+          pkill -f cloudflared || true
+          pkill -f "opencode serve" || true
+          pkill -f "opencode-unlimited watch" || true
+
+      - name: آپلود آرتیفکت
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-unlimited-info
+          path: |
+            ${{ env.LOG_DIR }}/*.log
+            opencode-url.txt
+          if-no-files-found: ignore
+
+      - name: Commit و push اجباری
+        if: always()
+        run: |
+          set -uo pipefail
+          git add -A
+
+          if git diff --cached -U0 | grep -aiE '(api[_-]?key|secret|token|password|Bearer)[=:" ]+[A-Za-z0-9_-]{16,}'; then
+            echo "❌ الگوی مشکوک به Secret در تغییرات پیدا شد — commit لغو شد"
+            git reset
+            exit 1
+          fi
+
+          if git diff --cached --name-only | grep -aiE '(^|/)(.env|opencode.json|.*.log)$|.opencode/'; then
+            echo "❌ فایل حساس در staging — commit لغو شد"
+            git reset
+            exit 1
+          fi
+
+          if git diff --cached --quiet; then
+            echo "ℹ️ تغییری برای commit وجود ندارد"
+            exit 0
+          fi
+
+          git commit -m "chore(opencode): unlimited session at $(date -u +%Y-%m-%dT%H:%M:%SZ) [skip ci]"
+
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${{ github.ref_name }}"; then
+              echo "✅ push موفق (تلاش $attempt)"
+              exit 0
+            fi
+            echo "⚠️ push ناموفق، تلاش $attempt — rebase و مجدد..."
+            git pull --rebase --autostash origin "${{ github.ref_name }}" || true
+            sleep 3
+          done
+          echo "❌ push در ۳ تلاش ناموفق بود"
+          exit 1
