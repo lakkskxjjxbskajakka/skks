@@ -20,4 +20,11 @@ jobs:
       - name: Run LarpCode Help
         shell: pwsh
         run: |
-          larpcode --help
+          $larpcode = "$env:LOCALAPPDATA\Programs\LarpCode CLI\bin\larpcode.exe"
+
+          if (!(Test-Path $larpcode)) {
+              throw "LarpCode executable not found: $larpcode"
+          }
+
+          & $larpcode --help
+
