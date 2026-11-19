@@ -14,70 +14,93 @@ jobs:
       OPENCODE_SERVER_PASSWORD: Amir123456
 
     steps:
-      - name: Install, Launch and Monitor LarpCode + Cloudflare
-        timeout-minutes: 360
-        shell: bash
+
+      - name: Install LarpCode
+        shell: pwsh
         run: |
-          python -u - <<'PY'
+          $installer = "$env:RUNNER_TEMP\install-cli.ps1"
+
+          Invoke-WebRequest `
+            "https://github.com/Tazmyan/LarpCode/releases/latest/download/install-cli.ps1" `
+            -OutFile $installer
+
+          & $installer
+
+          $larpcode = "$env:LOCALAPPDATA\Programs\LarpCode CLI\bin\larpcode.exe"
+
+          if (!(Test-Path $larpcode)) {
+            throw "LarpCode installation failed"
+          }
+
+          "LARPCODE_EXE=$larpcode" >> $env:GITHUB_ENV
+
+      - name: Install Cloudflared
+        shell: pwsh
+        run: |
+          $cloudflared = "$env:RUNNER_TEMP\cloudflared.exe"
+
+          Invoke-WebRequest `
+            "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" `
+            -OutFile $cloudflared
+
+          if (!(Test-Path $cloudflared)) {
+            throw "Cloudflared installation failed"
+          }
+
+          "CLOUDFLARED_EXE=$cloudflared" >> $env:GITHUB_ENV
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run LarpCode and Cloudflare
+        timeout-minutes: 356
+        shell: pwsh
+        run: |
+          @'
           import os
-          import sys
           import re
           import time
           import socket
-          import shutil
-          import urllib.request
           import subprocess
           from pathlib import Path
           from datetime import datetime
 
-          # ==========================================
-          # Configuration
-          # ==========================================
-
-          PORT = 3000
           HOST = "127.0.0.1"
+          PORT = 3000
           DURATION = 355 * 60
 
+          LARPCODE = Path(os.environ["LARPCODE_EXE"])
+          CLOUDFLARED = Path(os.environ["CLOUDFLARED_EXE"])
           PASSWORD = os.environ["OPENCODE_PASSWORD"]
 
           WORK = Path(os.environ["RUNNER_TEMP"]) / "larpcode"
           WORK.mkdir(parents=True, exist_ok=True)
 
-          SERVER_LOG = WORK / "larpcode.log"
-          TUNNEL_LOG = WORK / "cloudflared.log"
+          SERVER_LOG = WORK / "server.log"
+          TUNNEL_LOG = WORK / "tunnel.log"
 
-          server_process = None
-          tunnel_process = None
-          tunnel_log_handle = None
-
-          # ==========================================
-          # Utilities
-          # ==========================================
+          server = None
+          tunnel = None
 
           def log(message):
-              now = datetime.now().strftime("%H:%M:%S")
-              print(f"[{now}] {message}", flush=True)
+              timestamp = datetime.now().strftime("%H:%M:%S")
+              print(f"[{timestamp}] {message}", flush=True)
 
-          def run_command(args, **kwargs):
-              return subprocess.run(
-                  args,
-                  check=True,
-                  **kwargs
-              )
-
-          def download(url, destination):
-              log(f"Downloading: {url}")
-
-              request = urllib.request.Request(
-                  url,
-                  headers={"User-Agent": "Mozilla/5.0"}
-              )
-
-              with urllib.request.urlopen(
-                  request,
-                  timeout=120
-              ) as response:
-                  destination.write_bytes(response.read())
+          def start_process(command, log_path):
+              with open(
+                  log_path,
+                  "a",
+                  encoding="utf-8",
+                  errors="replace"
+              ) as output:
+                  return subprocess.Popen(
+                      command,
+                      stdout=output,
+                      stderr=subprocess.STDOUT,
+                      creationflags=subprocess.CREATE_NO_WINDOW
+                  )
 
           def port_is_open():
               try:
@@ -99,264 +122,145 @@ jobs:
 
               return False
 
-          # ==========================================
-          # Install LarpCode
-          # ==========================================
-
-          try:
-              log("Installing LarpCode...")
-
-              installer = WORK / "install-cli.ps1"
-
-              download(
-                  "https://github.com/Tazmyan/LarpCode/releases/latest/download/install-cli.ps1",
-                  installer
-              )
-
-              powershell = shutil.which("powershell.exe")
-
-              if not powershell:
-                  raise RuntimeError("PowerShell not found")
-
-              run_command([
-                  powershell,
-                  "-NoProfile",
-                  "-ExecutionPolicy", "Bypass",
-                  "-File", str(installer)
-              ])
-
-              larpcode = (
-                  Path(os.environ["LOCALAPPDATA"])
-                  / "Programs"
-                  / "LarpCode CLI"
-                  / "bin"
-                  / "larpcode.exe"
-              )
-
-              if not larpcode.exists():
-                  found = shutil.which("larpcode")
-                  if found:
-                      larpcode = Path(found)
-                  else:
-                      raise RuntimeError(
-                          "LarpCode executable not found"
-                      )
-
-              log(f"LarpCode installed: {larpcode}")
-
-              # ======================================
-              # Configure LarpCode
-              # ======================================
-
-              log("Configuring LarpCode service...")
-
-              for setting in [
+          def configure():
+              settings = [
                   ["service", "set", "hostname", HOST],
                   ["service", "set", "port", str(PORT)],
                   ["service", "set", "password", PASSWORD],
-              ]:
-                  run_command([
-                      str(larpcode),
-                      *setting
-                  ])
+              ]
 
-              # ======================================
-              # Start LarpCode
-              # ======================================
-
-              def start_server():
-                  global server_process
-
-                  log("Starting LarpCode service...")
-
-                  server_file = open(
-                      SERVER_LOG,
-                      "a",
-                      encoding="utf-8"
+              for setting in settings:
+                  subprocess.run(
+                      [str(LARPCODE), *setting],
+                      check=True,
+                      timeout=60
                   )
 
-                  server_process = subprocess.Popen(
-                      [
-                          str(larpcode),
-                          "serve",
-                          "--service"
-                      ],
-                      stdout=server_file,
-                      stderr=subprocess.STDOUT,
-                      creationflags=subprocess.CREATE_NO_WINDOW
-                  )
+          def start_server():
+              global server
 
-                  server_file.close()
+              if port_is_open():
+                  log("LarpCode is already ONLINE.")
+                  return
 
-              start_server()
+              log("Starting LarpCode...")
 
-              if not wait_for_server(120):
+              server = start_process(
+                  [str(LARPCODE), "serve", "--service"],
+                  SERVER_LOG
+              )
+
+              if not wait_for_server():
                   raise RuntimeError(
                       "LarpCode failed to start on port 3000"
                   )
 
               log("LarpCode is ONLINE.")
 
-              # ======================================
-              # Install Cloudflared
-              # ======================================
+          def start_tunnel():
+              global tunnel
 
-              cloudflared = WORK / "cloudflared.exe"
+              log("Starting Cloudflare Quick Tunnel...")
 
-              download(
-                  "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe",
-                  cloudflared
+              tunnel = start_process(
+                  [
+                      str(CLOUDFLARED),
+                      "tunnel",
+                      "--url",
+                      f"http://{HOST}:{PORT}",
+                      "--no-autoupdate"
+                  ],
+                  TUNNEL_LOG
               )
 
-              log("Cloudflared installed.")
+              deadline = time.time() + 120
 
-              # ======================================
-              # Start Cloudflare Quick Tunnel
-              # ======================================
-
-              def start_tunnel():
-                  global tunnel_process
-                  global tunnel_log_handle
-
-                  log("Starting Cloudflare Quick Tunnel...")
-
-                  tunnel_log_handle = open(
-                      TUNNEL_LOG,
-                      "w",
-                      encoding="utf-8",
-                      errors="replace"
-                  )
-
-                  tunnel_process = subprocess.Popen(
-                      [
-                          str(cloudflared),
-                          "tunnel",
-                          "--url",
-                          f"http://{HOST}:{PORT}",
-                          "--no-autoupdate"
-                      ],
-                      stdout=tunnel_log_handle,
-                      stderr=subprocess.STDOUT,
-                      creationflags=subprocess.CREATE_NO_WINDOW
-                  )
-
-                  deadline = time.time() + 120
-
-                  while time.time() < deadline:
-
-                      if tunnel_process.poll() is not None:
-                          raise RuntimeError(
-                              "Cloudflare Tunnel exited during startup"
-                          )
-
-                      tunnel_log_handle.flush()
-
-                      try:
-                          content = TUNNEL_LOG.read_text(
-                              encoding="utf-8",
-                              errors="replace"
-                          )
-
-                          match = re.search(
-                              r"https://[a-zA-Z0-9-]+\.trycloudflare\.com",
-                              content
-                          )
-
-                          if match:
-                              return match.group(0)
-
-                      except OSError:
-                          pass
-
-                      time.sleep(2)
-
-                  raise RuntimeError(
-                      "Cloudflare Tunnel URL was not found"
-                  )
-
-              # ======================================
-              # Pairing
-              # ======================================
-
-              def create_pairing(url):
-                  log("Generating browser pairing link...")
-
-                  result = subprocess.run(
-                      [
-                          str(larpcode),
-                          "pair",
-                          "--url",
-                          url
-                      ],
-                      stdout=subprocess.PIPE,
-                      stderr=subprocess.STDOUT,
-                      text=True,
-                      encoding="utf-8",
-                      errors="replace",
-                      timeout=90
-                  )
-
-                  print(result.stdout, flush=True)
-
-                  if result.returncode != 0:
+              while time.time() < deadline:
+                  if tunnel.poll() is not None:
                       raise RuntimeError(
-                          "Pairing command failed"
+                          "Cloudflare Tunnel exited unexpectedly"
                       )
+
+                  try:
+                      content = TUNNEL_LOG.read_text(
+                          encoding="utf-8",
+                          errors="replace"
+                      )
+
+                      match = re.search(
+                          r"https://[a-zA-Z0-9-]+\.trycloudflare\.com",
+                          content
+                      )
+
+                      if match:
+                          return match.group(0)
+
+                  except OSError:
+                      pass
+
+                  time.sleep(2)
+
+              raise RuntimeError(
+                  "Could not obtain Cloudflare Tunnel URL"
+              )
+
+          def stop_process(process):
+              if process is None:
+                  return
+
+              try:
+                  subprocess.run(
+                      [
+                          "taskkill",
+                          "/PID",
+                          str(process.pid),
+                          "/T",
+                          "/F"
+                      ],
+                      stdout=subprocess.DEVNULL,
+                      stderr=subprocess.DEVNULL,
+                      timeout=15
+                  )
+              except Exception:
+                  pass
+
+          try:
+              log("Configuring LarpCode...")
+              configure()
+
+              start_server()
 
               tunnel_url = start_tunnel()
 
               log("=" * 55)
-              log("CLOUDFLARE TUNNEL READY")
+              log("LARPCODE PUBLIC URL")
               log(tunnel_url)
               log("=" * 55)
 
-              create_pairing(tunnel_url)
-
-              # ======================================
-              # Hosting Monitor
-              # ======================================
-
-              log("LarpCode hosting started.")
+              log("Pairing is disabled.")
               log("Hosting duration: 355 minutes.")
 
               deadline = time.time() + DURATION
 
               while time.time() < deadline:
 
-                  # Check LarpCode TCP port
                   if not port_is_open():
-
-                      log("WARNING: LarpCode is offline.")
-                      log("Attempting to restart LarpCode...")
-
+                      log("LarpCode is not responding.")
                       start_server()
 
-                      if not wait_for_server(90):
-                          raise RuntimeError(
-                              "LarpCode could not be restarted"
-                          )
-
-                      log("LarpCode recovered.")
-
-                  # Check Cloudflare Tunnel
-                  if tunnel_process.poll() is not None:
-
-                      log("WARNING: Cloudflare Tunnel stopped.")
-                      log("Restarting tunnel...")
+                  if tunnel is None or tunnel.poll() is not None:
+                      log("Cloudflare Tunnel disconnected.")
 
                       tunnel_url = start_tunnel()
 
                       log("=" * 55)
-                      log("NEW CLOUDFLARE TUNNEL URL")
+                      log("NEW LARPCODE PUBLIC URL")
                       log(tunnel_url)
                       log("=" * 55)
 
-                      create_pairing(tunnel_url)
-
-                      log("New tunnel and pairing are ready.")
-
-                  remaining = int(
-                      (deadline - time.time()) / 60
+                  remaining = max(
+                      0,
+                      int((deadline - time.time()) / 60)
                   )
 
                   log(
@@ -367,42 +271,18 @@ jobs:
 
                   time.sleep(60)
 
-              log("355-minute hosting period completed.")
+              log("355-minute hosting completed.")
 
           except Exception as error:
               log(f"FATAL ERROR: {error}")
               raise
 
           finally:
-              log("Cleaning up processes...")
-
-              for process in [
-                  tunnel_process,
-                  server_process
-              ]:
-
-                  if process is not None:
-                      try:
-                          subprocess.run(
-                              [
-                                  "taskkill",
-                                  "/PID",
-                                  str(process.pid),
-                                  "/T",
-                                  "/F"
-                              ],
-                              stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL,
-                              timeout=15
-                          )
-                      except Exception:
-                          pass
-
-              if tunnel_log_handle:
-                  try:
-                      tunnel_log_handle.close()
-                  except Exception:
-                      pass
-
+              log("Stopping processes...")
+              stop_process(tunnel)
+              stop_process(server)
               log("Cleanup completed.")
-          PY
+
+          '@ | Set-Content -Path "$env:RUNNER_TEMP\main.py" -Encoding UTF8
+
+          python -u "$env:RUNNER_TEMP\main.py"
