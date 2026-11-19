@@ -1,0 +1,23 @@
+
+name: LarpCode CLI Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  install-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Install LarpCode CLI
+        shell: pwsh
+        run: |
+          irm https://github.com/Tazmyan/LarpCode/releases/latest/download/install-cli.ps1 | iex
+
+      - name: Run LarpCode Help
+        shell: pwsh
+        run: |
+          larpcode --help
