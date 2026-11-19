@@ -4,11 +4,8 @@ name: LarpCode Windows Server
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  larpcode:
+  server:
     runs-on: windows-latest
     timeout-minutes: 360
 
@@ -17,229 +14,395 @@ jobs:
       OPENCODE_SERVER_PASSWORD: Amir123456
 
     steps:
-      - name: Install LarpCode
-        shell: pwsh
+      - name: Install, Launch and Monitor LarpCode + Cloudflare
+        timeout-minutes: 360
+        shell: bash
         run: |
-          irm https://github.com/Tazmyan/LarpCode/releases/latest/download/install-cli.ps1 | iex
+          python -u - <<'PY'
+          import os
+          import sys
+          import re
+          import time
+          import socket
+          import shutil
+          import urllib.request
+          import subprocess
+          from pathlib import Path
+          from datetime import datetime
 
-          $larpcode = "$env:LOCALAPPDATA\Programs\LarpCode CLI\bin\larpcode.exe"
+          # ==========================================
+          # Configuration
+          # ==========================================
 
-          if (!(Test-Path $larpcode)) {
-            throw "LarpCode executable not found"
-          }
+          PORT = 3000
+          HOST = "127.0.0.1"
+          DURATION = 355 * 60
 
-          "LARPCODE_EXE=$larpcode" |
-            Out-File -FilePath $env:GITHUB_ENV -Append
+          PASSWORD = os.environ["OPENCODE_PASSWORD"]
 
-          & $larpcode --version
+          WORK = Path(os.environ["RUNNER_TEMP"]) / "larpcode"
+          WORK.mkdir(parents=True, exist_ok=True)
 
-      - name: Install Cloudflare Tunnel
-        shell: pwsh
-        run: |
-          $cloudflared = "$env:RUNNER_TEMP\cloudflared.exe"
+          SERVER_LOG = WORK / "larpcode.log"
+          TUNNEL_LOG = WORK / "cloudflared.log"
 
-          Invoke-WebRequest `
-            -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" `
-            -OutFile $cloudflared
+          server_process = None
+          tunnel_process = None
+          tunnel_log_handle = None
 
-          if (!(Test-Path $cloudflared)) {
-            throw "Cloudflared installation failed"
-          }
+          # ==========================================
+          # Utilities
+          # ==========================================
 
-          "CLOUDFLARED_EXE=$cloudflared" |
-            Out-File -FilePath $env:GITHUB_ENV -Append
+          def log(message):
+              now = datetime.now().strftime("%H:%M:%S")
+              print(f"[{now}] {message}", flush=True)
 
-          & $cloudflared --version
+          def run_command(args, **kwargs):
+              return subprocess.run(
+                  args,
+                  check=True,
+                  **kwargs
+              )
 
-      - name: Configure LarpCode
-        shell: pwsh
-        run: |
-          $larpcode = $env:LARPCODE_EXE
+          def download(url, destination):
+              log(f"Downloading: {url}")
 
-          & $larpcode service set hostname 127.0.0.1
-          & $larpcode service set port 3000
-          & $larpcode service set password $env:OPENCODE_PASSWORD
+              request = urllib.request.Request(
+                  url,
+                  headers={"User-Agent": "Mozilla/5.0"}
+              )
 
-          if ($LASTEXITCODE -ne 0) {
-            throw "LarpCode configuration failed"
-          }
+              with urllib.request.urlopen(
+                  request,
+                  timeout=120
+              ) as response:
+                  destination.write_bytes(response.read())
 
-      - name: Start LarpCode Server
-        shell: pwsh
-        run: |
-          $larpcode = $env:LARPCODE_EXE
+          def port_is_open():
+              try:
+                  with socket.create_connection(
+                      (HOST, PORT),
+                      timeout=3
+                  ):
+                      return True
+              except OSError:
+                  return False
 
-          $serverLog = "$env:RUNNER_TEMP\larpcode-server.log"
-          $serverError = "$env:RUNNER_TEMP\larpcode-server-error.log"
+          def wait_for_server(timeout=120):
+              deadline = time.time() + timeout
 
-          $server = Start-Process `
-            -FilePath $larpcode `
-            -ArgumentList @("serve", "--service") `
-            -PassThru `
-            -RedirectStandardOutput $serverLog `
-            -RedirectStandardError $serverError
+              while time.time() < deadline:
+                  if port_is_open():
+                      return True
+                  time.sleep(2)
 
-          "LARPCODE_PID=$($server.Id)" |
-            Out-File -FilePath $env:GITHUB_ENV -Append
+              return False
 
-          $ready = $false
+          # ==========================================
+          # Install LarpCode
+          # ==========================================
 
-          for ($i = 0; $i -lt 60; $i++) {
-            if ($server.HasExited) {
-              Get-Content $serverError -ErrorAction SilentlyContinue
-              throw "LarpCode server exited unexpectedly"
-            }
+          try:
+              log("Installing LarpCode...")
 
-            $tcp = New-Object System.Net.Sockets.TcpClient
+              installer = WORK / "install-cli.ps1"
 
-            try {
-              $task = $tcp.ConnectAsync("127.0.0.1", 3000)
+              download(
+                  "https://github.com/Tazmyan/LarpCode/releases/latest/download/install-cli.ps1",
+                  installer
+              )
 
-              if ($task.Wait(1000) -and $tcp.Connected) {
-                $ready = $true
-                break
-              }
-            }
-            catch {
-            }
-            finally {
-              $tcp.Dispose()
-            }
+              powershell = shutil.which("powershell.exe")
 
-            Start-Sleep -Seconds 2
-          }
+              if not powershell:
+                  raise RuntimeError("PowerShell not found")
 
-          if (!$ready) {
-            throw "LarpCode server did not become ready"
-          }
+              run_command([
+                  powershell,
+                  "-NoProfile",
+                  "-ExecutionPolicy", "Bypass",
+                  "-File", str(installer)
+              ])
 
-          Write-Host "LarpCode is listening on port 3000"
+              larpcode = (
+                  Path(os.environ["LOCALAPPDATA"])
+                  / "Programs"
+                  / "LarpCode CLI"
+                  / "bin"
+                  / "larpcode.exe"
+              )
 
-      - name: Start Cloudflare Quick Tunnel
-        shell: pwsh
-        run: |
-          $cloudflared = $env:CLOUDFLARED_EXE
+              if not larpcode.exists():
+                  found = shutil.which("larpcode")
+                  if found:
+                      larpcode = Path(found)
+                  else:
+                      raise RuntimeError(
+                          "LarpCode executable not found"
+                      )
 
-          $stdout = "$env:RUNNER_TEMP\cloudflare.log"
-          $stderr = "$env:RUNNER_TEMP\cloudflare-error.log"
+              log(f"LarpCode installed: {larpcode}")
 
-          $tunnel = Start-Process `
-            -FilePath $cloudflared `
-            -ArgumentList @(
-              "tunnel",
-              "--url",
-              "http://127.0.0.1:3000",
-              "--no-autoupdate"
-            ) `
-            -PassThru `
-            -RedirectStandardOutput $stdout `
-            -RedirectStandardError $stderr
+              # ======================================
+              # Configure LarpCode
+              # ======================================
 
-          "CLOUDFLARE_PID=$($tunnel.Id)" |
-            Out-File -FilePath $env:GITHUB_ENV -Append
+              log("Configuring LarpCode service...")
 
-          $tunnelUrl = $null
+              for setting in [
+                  ["service", "set", "hostname", HOST],
+                  ["service", "set", "port", str(PORT)],
+                  ["service", "set", "password", PASSWORD],
+              ]:
+                  run_command([
+                      str(larpcode),
+                      *setting
+                  ])
 
-          for ($i = 0; $i -lt 60; $i++) {
-            if ($tunnel.HasExited) {
-              Get-Content $stderr -ErrorAction SilentlyContinue
-              throw "Cloudflare Tunnel exited unexpectedly"
-            }
+              # ======================================
+              # Start LarpCode
+              # ======================================
 
-            $logs = ""
+              def start_server():
+                  global server_process
 
-            if (Test-Path $stderr) {
-              $logs += Get-Content $stderr -Raw
-            }
+                  log("Starting LarpCode service...")
 
-            if (Test-Path $stdout) {
-              $logs += Get-Content $stdout -Raw
-            }
+                  server_file = open(
+                      SERVER_LOG,
+                      "a",
+                      encoding="utf-8"
+                  )
 
-            $match = [regex]::Match(
-              $logs,
-              'https://[a-zA-Z0-9-]+\.trycloudflare\.com'
-            )
+                  server_process = subprocess.Popen(
+                      [
+                          str(larpcode),
+                          "serve",
+                          "--service"
+                      ],
+                      stdout=server_file,
+                      stderr=subprocess.STDOUT,
+                      creationflags=subprocess.CREATE_NO_WINDOW
+                  )
 
-            if ($match.Success) {
-              $tunnelUrl = $match.Value
-              break
-            }
+                  server_file.close()
 
-            Start-Sleep -Seconds 2
-          }
+              start_server()
 
-          if (!$tunnelUrl) {
-            throw "Could not obtain Cloudflare Tunnel URL"
-          }
+              if not wait_for_server(120):
+                  raise RuntimeError(
+                      "LarpCode failed to start on port 3000"
+                  )
 
-          "TUNNEL_URL=$tunnelUrl" |
-            Out-File -FilePath $env:GITHUB_ENV -Append
+              log("LarpCode is ONLINE.")
 
-          Write-Host "Cloudflare Tunnel is ready: $tunnelUrl"
+              # ======================================
+              # Install Cloudflared
+              # ======================================
 
-      - name: Generate Browser Pairing Link
-        shell: pwsh
-        run: |
-          $larpcode = $env:LARPCODE_EXE
-          $url = $env:TUNNEL_URL
+              cloudflared = WORK / "cloudflared.exe"
 
-          Write-Host "Generating LarpCode pairing link..."
+              download(
+                  "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe",
+                  cloudflared
+              )
 
-          $output = & $larpcode pair --url $url 2>&1
+              log("Cloudflared installed.")
 
-          if ($LASTEXITCODE -ne 0) {
-            $output
-            throw "Pairing link generation failed"
-          }
+              # ======================================
+              # Start Cloudflare Quick Tunnel
+              # ======================================
 
-          $output | ForEach-Object {
-            Write-Host $_
-          }
+              def start_tunnel():
+                  global tunnel_process
+                  global tunnel_log_handle
 
-          Write-Host ""
-          Write-Host "Open the generated pairing link in your browser."
+                  log("Starting Cloudflare Quick Tunnel...")
 
-      - name: Keep Server Alive
-        shell: pwsh
-        run: |
-          $serverPid = [int]$env:LARPCODE_PID
-          $tunnelPid = [int]$env:CLOUDFLARE_PID
+                  tunnel_log_handle = open(
+                      TUNNEL_LOG,
+                      "w",
+                      encoding="utf-8",
+                      errors="replace"
+                  )
 
-          $deadline = (Get-Date).AddMinutes(355)
+                  tunnel_process = subprocess.Popen(
+                      [
+                          str(cloudflared),
+                          "tunnel",
+                          "--url",
+                          f"http://{HOST}:{PORT}",
+                          "--no-autoupdate"
+                      ],
+                      stdout=tunnel_log_handle,
+                      stderr=subprocess.STDOUT,
+                      creationflags=subprocess.CREATE_NO_WINDOW
+                  )
 
-          Write-Host "LarpCode hosting started."
-          Write-Host "Hosting duration: 355 minutes."
+                  deadline = time.time() + 120
 
-          while ((Get-Date) -lt $deadline) {
-            $server = Get-Process -Id $serverPid -ErrorAction SilentlyContinue
-            $tunnel = Get-Process -Id $tunnelPid -ErrorAction SilentlyContinue
+                  while time.time() < deadline:
 
-            if (!$server) {
-              throw "LarpCode server stopped unexpectedly"
-            }
+                      if tunnel_process.poll() is not None:
+                          raise RuntimeError(
+                              "Cloudflare Tunnel exited during startup"
+                          )
 
-            if (!$tunnel) {
-              throw "Cloudflare Tunnel stopped unexpectedly"
-            }
+                      tunnel_log_handle.flush()
 
-            $remaining = [int]($deadline - (Get-Date)).TotalMinutes
+                      try:
+                          content = TUNNEL_LOG.read_text(
+                              encoding="utf-8",
+                              errors="replace"
+                          )
 
-            Write-Host "Server running. Remaining: $remaining minutes"
+                          match = re.search(
+                              r"https://[a-zA-Z0-9-]+\.trycloudflare\.com",
+                              content
+                          )
 
-            Start-Sleep -Seconds 60
-          }
+                          if match:
+                              return match.group(0)
 
-          Write-Host "355-minute hosting period completed."
+                      except OSError:
+                          pass
 
-      - name: Cleanup
-        if: always()
-        shell: pwsh
-        run: |
-          foreach ($name in @("LARPCODE_PID", "CLOUDFLARE_PID")) {
-            $value = [Environment]::GetEnvironmentVariable($name)
+                      time.sleep(2)
 
-            if ($value) {
-              Stop-Process -Id ([int]$value) -Force -ErrorAction SilentlyContinue
-            }
-          }
+                  raise RuntimeError(
+                      "Cloudflare Tunnel URL was not found"
+                  )
+
+              # ======================================
+              # Pairing
+              # ======================================
+
+              def create_pairing(url):
+                  log("Generating browser pairing link...")
+
+                  result = subprocess.run(
+                      [
+                          str(larpcode),
+                          "pair",
+                          "--url",
+                          url
+                      ],
+                      stdout=subprocess.PIPE,
+                      stderr=subprocess.STDOUT,
+                      text=True,
+                      encoding="utf-8",
+                      errors="replace",
+                      timeout=90
+                  )
+
+                  print(result.stdout, flush=True)
+
+                  if result.returncode != 0:
+                      raise RuntimeError(
+                          "Pairing command failed"
+                      )
+
+              tunnel_url = start_tunnel()
+
+              log("=" * 55)
+              log("CLOUDFLARE TUNNEL READY")
+              log(tunnel_url)
+              log("=" * 55)
+
+              create_pairing(tunnel_url)
+
+              # ======================================
+              # Hosting Monitor
+              # ======================================
+
+              log("LarpCode hosting started.")
+              log("Hosting duration: 355 minutes.")
+
+              deadline = time.time() + DURATION
+
+              while time.time() < deadline:
+
+                  # Check LarpCode TCP port
+                  if not port_is_open():
+
+                      log("WARNING: LarpCode is offline.")
+                      log("Attempting to restart LarpCode...")
+
+                      start_server()
+
+                      if not wait_for_server(90):
+                          raise RuntimeError(
+                              "LarpCode could not be restarted"
+                          )
+
+                      log("LarpCode recovered.")
+
+                  # Check Cloudflare Tunnel
+                  if tunnel_process.poll() is not None:
+
+                      log("WARNING: Cloudflare Tunnel stopped.")
+                      log("Restarting tunnel...")
+
+                      tunnel_url = start_tunnel()
+
+                      log("=" * 55)
+                      log("NEW CLOUDFLARE TUNNEL URL")
+                      log(tunnel_url)
+                      log("=" * 55)
+
+                      create_pairing(tunnel_url)
+
+                      log("New tunnel and pairing are ready.")
+
+                  remaining = int(
+                      (deadline - time.time()) / 60
+                  )
+
+                  log(
+                      f"LarpCode: ONLINE | "
+                      f"Cloudflare: ONLINE | "
+                      f"Remaining: {remaining} minutes"
+                  )
+
+                  time.sleep(60)
+
+              log("355-minute hosting period completed.")
+
+          except Exception as error:
+              log(f"FATAL ERROR: {error}")
+              raise
+
+          finally:
+              log("Cleaning up processes...")
+
+              for process in [
+                  tunnel_process,
+                  server_process
+              ]:
+
+                  if process is not None:
+                      try:
+                          subprocess.run(
+                              [
+                                  "taskkill",
+                                  "/PID",
+                                  str(process.pid),
+                                  "/T",
+                                  "/F"
+                              ],
+                              stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL,
+                              timeout=15
+                          )
+                      except Exception:
+                          pass
+
+              if tunnel_log_handle:
+                  try:
+                      tunnel_log_handle.close()
+                  except Exception:
+                      pass
+
+              log("Cleanup completed.")
+          PY
