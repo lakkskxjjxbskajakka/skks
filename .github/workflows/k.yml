@@ -1,0 +1,941 @@
+name: OpenCode Web (Hardened)
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'مدت اجرا (دقیقه، حداکثر ۳۳۰)'
+        required: true
+        default: '60'
+      opencode_port:
+        description: 'پورت داخلی OpenCode Web'
+        required: true
+        default: '4096'
+      proxy_port:
+        description: 'پورت Caddy'
+        required: true
+        default: '8443'
+      egress_mode:
+        description: 'استراتژی خروجی: auto = اول SOCKS، اگر نشد WARP'
+        required: true
+        type: choice
+        default: auto
+        options: [auto, socks, warp]
+      max_proxies:
+        description: 'حداکثر پروکسی SOCKS نگه‌داشته‌شده'
+        required: true
+        default: '24'
+      warp_pool_size:
+        description: 'سقف exitهای WARP (۱ تا ۳۲)'
+        required: true
+        default: '4'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: opencode-web-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  opencode-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+
+    env:
+      OPENCODE_PORT: ${{ github.event.inputs.opencode_port }}
+      PROXY_PORT: ${{ github.event.inputs.proxy_port }}
+      DURATION: ${{ github.event.inputs.duration }}
+      EGRESS_MODE_INPUT: ${{ github.event.inputs.egress_mode }}
+      MAX_PROXIES: ${{ github.event.inputs.max_proxies }}
+      WARP_POOL_SIZE: ${{ github.event.inputs.warp_pool_size }}
+      CADDY_VERSION: '2.8.4'
+      STACK_DIR: /tmp/opencode-unlimited-proxy/stack
+      OPENCODE_BASIC_USER: ocuser
+      # اختیاری — اگر ست شود مسیر پایدار استفاده می‌شود
+      OPENCODE_ZEN_KEY: ${{ secrets.OPENCODE_ZEN_KEY }}
+      SECRET_BASIC_PASS: ${{ secrets.OPENCODE_BASIC_PASS }}
+      MY_PROXIES: ${{ secrets.MY_PROXIES }}
+
+    steps:
+      # ============================================================
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+
+      # ============================================================
+      - name: مسیرها + .gitignore + تولید اعتبارنامه‌های تصادفی
+        run: |
+          set -euo pipefail
+          git config user.name  "opencode-bot"
+          git config user.email "opencode-bot@users.noreply.github.com"
+
+          LOG_DIR="${RUNNER_TEMP}/opencode-logs"
+          HELPERS="${RUNNER_TEMP}/oc-helpers"
+          CONFIG_ROOT="${RUNNER_TEMP}/opencode-config"
+          mkdir -p "$LOG_DIR/diagnostics" "$LOG_DIR/proxy-out" "$HELPERS" "$CONFIG_ROOT/opencode"
+          {
+            echo "LOG_DIR=$LOG_DIR"
+            echo "HELPERS=$HELPERS"
+            echo "XDG_CONFIG_HOME=$CONFIG_ROOT"
+          } >> "$GITHUB_ENV"
+
+          # duration را اعتبارسنجی کن (جلوگیری از injection و مقدار بی‌معنی)
+          case "$DURATION" in ''|*[!0-9]*) echo "duration نامعتبر"; exit 1;; esac
+          if [ "$DURATION" -lt 5 ] || [ "$DURATION" -gt 330 ]; then
+            echo "duration باید بین ۵ و ۳۳۰ باشد"; exit 1; fi
+
+          # این‌ها هرگز نباید commit شوند (cloudflared ~40MB بود!)
+          cat >> .gitignore <<'IGN'
+
+          # === OpenCode runner artifacts (auto) ===
+          *.log
+          opencode-url.txt
+          opencode-credentials.txt
+          cloudflared
+          proxy-out/
+          .opencode/
+          opencode.json
+          .env
+          .env.*
+          IGN
+
+          gen() { openssl rand -hex 24; }
+          mask() { echo "::add-mask::$1"; }
+
+          BASIC_PASS="${SECRET_BASIC_PASS:-}"
+          [ -n "$BASIC_PASS" ] || BASIC_PASS="$(gen)"
+          SERVER_KEY="$(gen)"
+          WEBUI_PASS="$(gen)"
+          for v in "$BASIC_PASS" "$SERVER_KEY" "$WEBUI_PASS"; do mask "$v"; done
+          {
+            echo "OPENCODE_BASIC_PASS=$BASIC_PASS"
+            echo "PROXY_SERVER_KEY=$SERVER_KEY"
+            echo "PROXY_WEBUI_USER=ocadmin"
+            echo "PROXY_WEBUI_PASS=$WEBUI_PASS"
+          } >> "$GITHUB_ENV"
+
+          # فقط داخل آرتیفکت، نه در لاگ و نه در Git
+          umask 077
+          {
+            echo "username: $OPENCODE_BASIC_USER"
+            echo "password: $BASIC_PASS"
+            echo "proxy_api_key: $SERVER_KEY"
+            echo "webui_user: ocadmin"
+            echo "webui_pass: $WEBUI_PASS"
+          } > "$LOG_DIR/opencode-credentials.txt"
+
+          if [ "${{ github.event.repository.private }}" = "false" ]; then
+            echo "::warning title=Public repo::مخزن عمومی است. آرتیفکت حاوی رمز را نگه ندارید یا secret ست کنید."
+          fi
+
+      # ============================================================
+      - name: نصب Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: نصب OpenCode
+        run: |
+          set -euo pipefail
+          npm install -g opencode-ai@latest || npm install -g opencode@latest
+          opencode --version || true
+
+      - name: نصب Caddy
+        run: |
+          set -euo pipefail
+          U="https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL "$U" -o /tmp/caddy.tar.gz
+          tar -xzf /tmp/caddy.tar.gz -C /tmp caddy
+          sudo install -m 0755 /tmp/caddy /usr/local/bin/caddy
+          rm -f /tmp/caddy /tmp/caddy.tar.gz
+          caddy version
+
+      # ============================================================
+      # اسکریپت‌های کمکی
+      # ============================================================
+      - name: نوشتن اسکریپت‌های کمکی
+        run: |
+          set -euo pipefail
+
+          # ---------- طبقه‌بندی وضعیت healthz ----------
+          cat > "$HELPERS/health.py" <<'PY'
+          import json, sys
+          path, mode, code = sys.argv[1], sys.argv[2], sys.argv[3]
+          if code == "000":
+              print("NOLISTENER|no HTTP listener"); raise SystemExit
+          try:
+              d = json.load(open(path))
+          except Exception:
+              print("BADJSON|unreadable healthz"); raise SystemExit
+          w = d.get("warp") or {}
+          wst = str(w.get("status") or "")
+          warp_on = (mode == "warp") and wst not in ("", "disabled", "off")
+          if warp_on:
+              active = int(w.get("active") or 0)
+          else:
+              active = int((d.get("proxies") or {}).get("healthy") or 0)
+          models = (d.get("models") or {}).get("status", "")
+          info = "ready=%s warp=%s active=%s cooling=%s proxies=%s models=%s issues=%s" % (
+              d.get("ready"), wst or "off", active, w.get("cooling", 0),
+              (d.get("proxies") or {}).get("healthy"), models,
+              ",".join(d.get("issues") or []))
+          if d.get("ready") is True:      print("OK|" + info)
+          elif active == 0:               print("QUOTA|" + info)   # سهمیه، نه خرابی
+          elif models != "ready":         print("DISCOVERY|" + info)
+          else:                           print("DEGRADED|" + info)
+          PY
+
+          # ---------- پچ کانفیگ موتور (فقط کلیدهای مستندشده) ----------
+          cat > "$HELPERS/patch_config.py" <<'PY'
+          import json, os, sys
+          p = os.path.join(os.environ["STACK_DIR"], "config.json")
+          mode = sys.argv[1]                       # warp | socks
+          c = json.load(open(p))
+          c["server_keys"] = [os.environ["PROXY_SERVER_KEY"]]
+          c.setdefault("webui", {})
+          c["webui"]["username"] = os.environ["PROXY_WEBUI_USER"]
+          c["webui"]["password"] = os.environ["PROXY_WEBUI_PASS"]
+          c["anonymous"] = True
+          c.setdefault("models", {})["free_only"] = True
+          # probe مصنوعی خودش exit می‌سوزاند -> خاموش
+          c["models"]["active_probes"] = False
+          zen = os.environ.get("OPENCODE_ZEN_KEY", "").strip()
+          if zen:
+              c["zen_keys"] = [zen]; c["prefer"] = "zen"
+          perf = c.setdefault("performance", {})
+          perf["free_tier_block_seconds"] = 300    # پیش‌فرض ۹۰۰ خیلی کند است
+          perf["failure_cooldown_seconds"] = 15
+          retry = c.setdefault("retry", {})
+          retry["timeout_seconds"] = 240
+          if mode == "socks":
+              urls = []
+              f = os.path.join(os.environ["LOG_DIR"], "proxy-out", "proxies.txt")
+              if os.path.exists(f):
+                  urls += [x.strip() for x in open(f) if x.strip()]
+              extra = os.environ.get("MY_PROXIES", "")
+              urls += [x.strip() for x in extra.splitlines() if x.strip()]
+              seen, uniq = set(), []
+              for u in urls:
+                  if u not in seen: seen.add(u); uniq.append(u)
+              if not uniq:
+                  print("NO_PROXIES"); raise SystemExit(3)
+              c["warp"] = {"enabled": False}
+              c["proxies"] = uniq
+              perf["max_anonymous_exits"] = max(8, len(uniq))
+              retry["max_attempts"] = min(4, max(2, len(uniq)))
+              print("patched socks: %d proxies" % len(uniq))
+          else:
+              c["warp"] = {"enabled": True,
+                           "pool_size": int(os.environ.get("WARP_POOL_SIZE", "4")),
+                           "stack": "ipv6", "source_ipv6": ""}
+              c["proxies"] = ["direct"]
+              retry["max_attempts"] = 4            # ۶ کل رینگ را می‌سوزاند
+              print("patched warp: pool=%s" % c["warp"]["pool_size"])
+          json.dump(c, open(p, "w"), indent=2)
+          PY
+
+          # ---------- برداشت و تست SOCKS5 (۴ مرحله، stdlib فقط) ----------
+          cat > "$HELPERS/socks_harvest.py" <<'PY'
+          import os, re, ssl, json, socket, struct, ipaddress, urllib.request, time
+          from concurrent.futures import ThreadPoolExecutor
+          from urllib.parse import urlsplit
+          W=int(os.getenv("WORKERS","400")); T_TCP=float(os.getenv("TCP_TIMEOUT","3"))
+          T_HAND=float(os.getenv("HANDSHAKE_TIMEOUT","5")); T_HTTP=float(os.getenv("HTTP_TIMEOUT","8"))
+          MAX_KEEP=int(os.getenv("MAX_KEEP","24")); DO_GATE=os.getenv("GATE","1")=="1"
+          OUT=os.getenv("OUT_DIR","proxy-out")
+          TRACE="https://1.1.1.1/cdn-cgi/trace"; GATE_URL="https://opencode.ai/inference/v1/models"
+          SOURCES=[
+           "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt",
+           "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS5_RAW.txt",
+           "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/socks5.txt",
+           "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks5/data.txt",
+           "https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies/txt/proxies-socks5.txt",
+           "https://raw.githubusercontent.com/vakhov/fresh-proxy-list/master/socks5.txt",
+           "https://raw.githubusercontent.com/ErcinDedeoglu/proxies/main/proxies/socks5.txt",
+           "https://raw.githubusercontent.com/Zaeem20/FREE_PROXIES_LIST/master/socks5.txt",
+           "https://raw.githubusercontent.com/r00tee/Proxy-List/main/Socks5.txt",
+           "https://raw.githubusercontent.com/MuRongPIG/Proxy-Master/main/socks5.txt",
+           "https://raw.githubusercontent.com/ALIILAPRO/Proxy/main/socks5.txt",
+           "https://raw.githubusercontent.com/prxchk/proxy-list/main/socks5.txt",
+           "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_files/socks5_proxies.txt",
+           "https://raw.githubusercontent.com/officialputuid/KangProxy/KangProxy/socks5/socks5.txt",
+          ]
+          UA="Mozilla/5.0 (X11; Linux x86_64) curl/8.5.0"
+          IPPORT=re.compile(r"(\d{1,3}(?:\.\d{1,3}){3})\s*:\s*(\d{1,5})")
+          def norm(t):
+              out=set(); s=t.strip()
+              if s[:1] in "[{":
+                  try:
+                      j=json.loads(s); rows=j if isinstance(j,list) else (j.get("data") or j.get("proxies") or [])
+                      for r in rows:
+                          if isinstance(r,dict):
+                              h,p=r.get("host") or r.get("ip"), r.get("port")
+                              if h and p: out.add((str(h),int(p)))
+                          elif isinstance(r,str):
+                              m=IPPORT.search(r)
+                              if m: out.add((m.group(1),int(m.group(2))))
+                      return out
+                  except Exception: pass
+              for m in IPPORT.finditer(t): out.add((m.group(1),int(m.group(2))))
+              return out
+          def routable(h,p):
+              if not (1<=p<=65535): return False
+              try: a=ipaddress.ip_address(h)
+              except ValueError: return False
+              return not (a.is_private or a.is_loopback or a.is_link_local or a.is_multicast or a.is_reserved or a.is_unspecified)
+          def recvn(s,n):
+              b=b""
+              while len(b)<n:
+                  c=s.recv(n-len(b))
+                  if not c: raise OSError("eof")
+                  b+=c
+              return b
+          def socks5(host,port,th,tp,timeout=T_HAND):
+              s=socket.create_connection((host,port),timeout=timeout); s.settimeout(timeout)
+              try:
+                  s.sendall(b"\x05\x01\x00")
+                  ver,meth=recvn(s,2)
+                  if ver!=5 or meth!=0: raise OSError("auth unsupported")
+                  try:
+                      a=ipaddress.ip_address(th)
+                      addr=(b"\x01"+a.packed) if a.version==4 else (b"\x04"+a.packed)
+                  except ValueError:
+                      hb=th.encode("idna")
+                      if len(hb)>255: raise OSError("domain too long")
+                      addr=b"\x03"+bytes([len(hb)])+hb
+                  s.sendall(b"\x05\x01\x00"+addr+struct.pack("!H",tp))
+                  rep=recvn(s,4)
+                  if rep[1]!=0: raise OSError("CONNECT rep=%d"%rep[1])
+                  at=rep[3]
+                  if at==1: recvn(s,4)
+                  elif at==4: recvn(s,16)
+                  elif at==3: recvn(s,recvn(s,1)[0])
+                  else: raise OSError("bad atyp")
+                  recvn(s,2); return s
+              except Exception:
+                  s.close(); raise
+          def request_via(proxy,url,headers=None,timeout=T_HTTP):
+              u=urlsplit(url); host=u.hostname; port=u.port or (443 if u.scheme=="https" else 80)
+              t0=time.time(); s=socks5(proxy[0],proxy[1],host,port,timeout=min(timeout,T_HAND))
+              try:
+                  s.settimeout(timeout)
+                  if u.scheme=="https": s=ssl.create_default_context().wrap_socket(s,server_hostname=host)
+                  path=(u.path or "/")+(("?"+u.query) if u.query else "")
+                  h={"Host":host,"User-Agent":UA,"Accept":"*/*","Connection":"close"}
+                  if headers: h.update(headers)
+                  s.sendall(("GET %s HTTP/1.1\r\n"%path+"".join("%s: %s\r\n"%kv for kv in h.items())+"\r\n").encode())
+                  buf=b""
+                  while len(buf)<200000:
+                      try: c=s.recv(16384)
+                      except socket.timeout: break
+                      if not c: break
+                      buf+=c
+                  if not buf: raise OSError("empty")
+                  head,_,rest=buf.partition(b"\r\n\r\n")
+                  return int(head.split(b" ")[1]), rest.decode("utf-8","replace"), int((time.time()-t0)*1000)
+              finally:
+                  try: s.close()
+                  except Exception: pass
+          def harvest():
+              pool=set(); stats={}
+              def grab(u):
+                  try:
+                      r=urllib.request.urlopen(urllib.request.Request(u,headers={"User-Agent":UA}),timeout=20)
+                      return u,norm(r.read().decode("utf-8","replace"))
+                  except Exception: return u,set()
+              with ThreadPoolExecutor(16) as ex:
+                  for u,s in ex.map(grab,SOURCES):
+                      stats["/".join(u.split("/")[3:5])]=len(s); pool|=s
+              return sorted(x for x in pool if routable(*x)), stats
+          def stage1(cands):
+              def ok(c):
+                  try: socket.create_connection(c,timeout=T_TCP).close(); return True
+                  except Exception: return False
+              with ThreadPoolExecutor(W) as ex:
+                  return [c for c,r in zip(cands,ex.map(ok,cands)) if r]
+          def stage23(cands):
+              def one(c):
+                  try:
+                      st,txt,ms=request_via(c,TRACE)
+                      if st!=200: return None
+                      ip=next((l[3:].strip() for l in txt.splitlines() if l.startswith("ip=")),None)
+                      if not ip: return None
+                      return {"proxy":"socks5h://%s:%d"%c,"exit":ip,"ms":ms}
+                  except Exception: return None
+              with ThreadPoolExecutor(min(W,150)) as ex:
+                  res=[r for r in ex.map(one,cands) if r]
+              seen=set(); uniq=[]
+              for r in sorted(res,key=lambda x:x["ms"]):
+                  if r["exit"] in seen: continue
+                  seen.add(r["exit"]); uniq.append(r)
+              return uniq
+          def stage4(rows):
+              def one(r):
+                  ph,pp=r["proxy"].split("://")[1].rsplit(":",1)
+                  try:
+                      st,txt,_=request_via((ph,int(pp)),GATE_URL,headers={"Authorization":"Bearer public"})
+                      r["gate_status"]=st; r["keep"]= st!=429      # 429=سبد سوخته، 403=gate (سالم)
+                      low=txt.lower()
+                      if "country" in low or "region" in low: r["keep"]=False; r["note"]="geo"
+                  except Exception as e:
+                      r["gate_status"]=0; r["keep"]=False; r["note"]=type(e).__name__
+                  return r
+              with ThreadPoolExecutor(min(W,80)) as ex: return list(ex.map(one,rows))
+          def main():
+              os.makedirs(OUT,exist_ok=True); t0=time.time()
+              cands,stats=harvest(); print("sources:",json.dumps(stats))
+              print("stage0 candidates:",len(cands))
+              alive=stage1(cands);   print("stage1 tcp:",len(alive))
+              rows=stage23(alive);   print("stage2/3 unique exits:",len(rows))
+              if DO_GATE and rows:
+                  rows=[r for r in stage4(rows) if r.get("keep")]
+                  print("stage4 bucket ok:",len(rows))
+              rows=rows[:MAX_KEEP]; urls=[r["proxy"] for r in rows]
+              open(os.path.join(OUT,"proxies.txt"),"w").write("\n".join(urls)+("\n" if urls else ""))
+              json.dump({"seconds":round(time.time()-t0,1),"candidates":len(cands),
+                         "tcp":len(alive),"kept":len(rows),"rows":rows},
+                        open(os.path.join(OUT,"report.json"),"w"),indent=2)
+              print("DONE %.1fs -> %d usable"%(time.time()-t0,len(rows)))
+              return 0 if rows else 2
+          if __name__=="__main__": raise SystemExit(main())
+          PY
+
+          chmod +x "$HELPERS"/*.py
+          python3 -m py_compile "$HELPERS"/*.py
+          echo "✅ helpers ready"
+
+      # ============================================================
+      - name: دریافت استک + پچ پایه کانفیگ
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/ebouther/opencode-unlimited-proxy.git /tmp/opencode-unlimited-proxy
+          cd "$STACK_DIR"
+          cp config.json config.json.orig
+
+          # فقط گیت TOS را از env می‌دهیم؛ بقیه با python مستقیم ست می‌شود
+          # تا sed های config-init با مقدار تصادفی ما تداخل نکنند.
+          cat > .env <<'EOF'
+          WARP_ACCEPT_TOS=1
+          WARP_SOURCE_IPV6=
+          EOF
+
+          docker compose down -v --remove-orphans 2>/dev/null || true
+          docker rm -f ofu-engine stack-config-init-1 2>/dev/null || true
+
+      # ============================================================
+      - name: انتخاب استراتژی خروجی (SOCKS → WARP)
+        run: |
+          set -uo pipefail
+          cd "$STACK_DIR"
+          MODE="$EGRESS_MODE_INPUT"
+          CHOSEN=""
+
+          try_socks() {
+            echo "🔎 برداشت و تست پروکسی SOCKS..."
+            WORKERS=500 MAX_KEEP="$MAX_PROXIES" GATE=1 OUT_DIR="$LOG_DIR/proxy-out" \
+              timeout 600 python3 "$HELPERS/socks_harvest.py" || true
+            if [ -s "$LOG_DIR/proxy-out/proxies.txt" ] || [ -n "${MY_PROXIES:-}" ]; then
+              if python3 "$HELPERS/patch_config.py" socks; then
+                CHOSEN="socks"; return 0
+              fi
+            fi
+            return 1
+          }
+
+          case "$MODE" in
+            socks) try_socks || { echo "❌ حالت socks اجباری بود و نتیجه نداد"; exit 1; } ;;
+            warp)  python3 "$HELPERS/patch_config.py" warp; CHOSEN="warp" ;;
+            auto)
+              if try_socks; then :; else
+                echo "↩️ بازگشت به WARP"
+                cp config.json.orig config.json
+                python3 "$HELPERS/patch_config.py" warp; CHOSEN="warp"
+              fi ;;
+          esac
+
+          echo "EGRESS_MODE=$CHOSEN" >> "$GITHUB_ENV"
+          echo "✅ egress mode: $CHOSEN"
+
+      # ============================================================
+      - name: اجرای استک + انتظار mode-aware
+        run: |
+          set -euo pipefail
+          cd "$STACK_DIR"
+          docker compose up -d config-init opencode-engine
+
+          wait_ready() {
+            local limit="$1" i code state info
+            for i in $(seq 1 "$limit"); do
+              code=$(curl -sS -o /tmp/hz.json -w '%{http_code}' \
+                     --connect-timeout 3 --max-time 8 \
+                     http://127.0.0.1:8080/healthz 2>/dev/null || echo 000)
+              read -r state info < <(python3 "$HELPERS/health.py" /tmp/hz.json "$EGRESS_MODE" "$code" | tr '|' ' ')
+              echo "[$i/$limit] $state $info"
+              case "$state" in
+                OK|DEGRADED|QUOTA) return 0 ;;   # listener زنده است؛ سهمیه مسئلهٔ جداست
+              esac
+              if [ $((i % 12)) -eq 0 ]; then
+                docker compose logs --tail=40 opencode-engine 2>&1 || true
+              fi
+              sleep 5
+            done
+            return 1
+          }
+
+          if ! wait_ready 72; then
+            echo "❌ موتور بالا نیامد — تلاش با WARP"
+            cp config.json.orig config.json
+            python3 "$HELPERS/patch_config.py" warp
+            echo "EGRESS_MODE=warp" >> "$GITHUB_ENV"
+            export EGRESS_MODE=warp
+            docker compose up -d --force-recreate config-init
+            docker restart ofu-engine >/dev/null
+            wait_ready 72 || { docker compose logs --tail=200; exit 1; }
+          fi
+
+          echo "----- healthz -----"
+          curl -s --max-time 8 http://127.0.0.1:8080/healthz | python3 -m json.tool || true
+
+      # ============================================================
+      - name: ساخت کانفیگ OpenCode
+        run: |
+          set -euo pipefail
+          CONFIG_FILE="$XDG_CONFIG_HOME/opencode/opencode.json"
+          caddy hash-password --plaintext "$OPENCODE_BASIC_PASS" > /tmp/ph.txt
+          echo "CADDY_PASS_HASH=$(cat /tmp/ph.txt)" >> "$GITHUB_ENV"
+
+          # 401 قبلی جعلی بود: هدر Authorization فرستاده نمی‌شد
+          curl -sf --max-time 20 -H "Authorization: Bearer ${PROXY_SERVER_KEY}" \
+            http://127.0.0.1:8080/v1/models > "$LOG_DIR/models.json" || {
+              echo "❌ دریافت مدل‌ها شکست خورد"; exit 1; }
+
+          python3 - "$CONFIG_FILE" "$PROXY_SERVER_KEY" "$LOG_DIR/models.json" <<'PY'
+          import json, sys
+          out, key, mp = sys.argv[1:4]
+          raw = json.load(open(mp))
+          items = raw.get("data") if isinstance(raw, dict) else raw
+          ids, seen = [], set()
+          for it in items or []:
+              mid = (it.get("id") or it.get("name")) if isinstance(it, dict) else str(it)
+              if mid and mid not in seen:
+                  seen.add(mid); ids.append(str(mid).strip())
+          if not ids: ids = ["beam-free"]
+          prefer = next((m for m in ids if m == "beam-free"), ids[0])
+          cfg = {"$schema": "https://opencode.ai/config.json",
+                 "provider": {"opencode-unlimited-proxy": {
+                     "npm": "@ai-sdk/openai-compatible",
+                     "name": "OpenCode Proxy",
+                     "options": {"baseURL": "http://127.0.0.1:8080/v1", "apiKey": key},
+                     "models": {m: {"name": m} for m in ids}}},
+                 "model": "opencode-unlimited-proxy/" + prefer,
+                 "autoupdate": False, "share": "disabled"}
+          json.dump(cfg, open(out, "w"), ensure_ascii=False, indent=2)
+          print("models:", len(ids), "default:", prefer)
+          PY
+          chmod 600 "$CONFIG_FILE"
+
+      - name: تست واقعی inference (non-fatal)
+        run: |
+          set -uo pipefail
+          MODEL=$(python3 -c "import json;print(json.load(open('$XDG_CONFIG_HOME/opencode/opencode.json'))['model'].split('/',1)[1])")
+          # max_tokens بالا: مدل‌های reasoning با بودجهٔ کم 200 خالی برمی‌گردانند
+          CODE=$(curl -sS -o "$LOG_DIR/smoke.json" -w '%{http_code}' --max-time 120 \
+            -H "Authorization: Bearer ${PROXY_SERVER_KEY}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"model\":\"$MODEL\",\"max_tokens\":400,\"messages\":[{\"role\":\"user\",\"content\":\"6*7 ? فقط عدد\"}]}" \
+            http://127.0.0.1:8080/v1/chat/completions || echo 000)
+          echo "smoke HTTP $CODE"
+          head -c 600 "$LOG_DIR/smoke.json" || true; echo
+          if [ "$CODE" != "200" ]; then
+            echo "::warning title=Upstream quota::پاسخ $CODE — سهمیهٔ upstream. سرویس سالم است؛ واچ‌داگ ری‌استارت نمی‌کند."
+          fi
+
+      # ============================================================
+      - name: اجرای OpenCode Web
+        run: |
+          set -euo pipefail
+          # فقط loopback؛ هشدار OPENCODE_SERVER_PASSWORD بی‌خطر است چون
+          # تنها مسیر ورود Caddy با basic_auth است.
+          nohup opencode web --port "$OPENCODE_PORT" --hostname 127.0.0.1 \
+            > "$LOG_DIR/opencode.log" 2>&1 &
+          echo "OPENCODE_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 40); do
+            C=$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 2 \
+                "http://127.0.0.1:$OPENCODE_PORT" || echo 000)
+            case "$C" in 200|30*|40*) echo "✅ OpenCode HTTP $C"; break;; esac
+            echo "wait $i/40: $C"; sleep 2
+          done
+          tail -n 20 "$LOG_DIR/opencode.log" || true
+
+      - name: راه‌اندازی Caddy
+        run: |
+          set -euo pipefail
+          CADDY_DIR="${RUNNER_TEMP}/caddy"; mkdir -p "$CADDY_DIR"
+          cat > "$CADDY_DIR/Caddyfile" <<'CADDYEOF'
+          {
+          	admin off
+          	auto_https off
+          }
+          :__PROXY_PORT__ {
+          	encode zstd gzip
+          	basic_auth {
+          		__BASIC_USER__ __BASIC_HASH__
+          	}
+          	header {
+          		X-Content-Type-Options "nosniff"
+          		X-Frame-Options "DENY"
+          		Referrer-Policy "no-referrer"
+          		-Server
+          	}
+          	reverse_proxy 127.0.0.1:__OPENCODE_PORT__ {
+          		header_up Host {host}
+          		header_up X-Real-IP {remote_host}
+          	}
+          }
+          CADDYEOF
+          python3 - "$CADDY_DIR/Caddyfile" <<'PY'
+          import sys, os
+          p = sys.argv[1]; s = open(p).read()
+          for k, v in (("__PROXY_PORT__", os.environ["PROXY_PORT"]),
+                       ("__OPENCODE_PORT__", os.environ["OPENCODE_PORT"]),
+                       ("__BASIC_USER__", os.environ["OPENCODE_BASIC_USER"]),
+                       ("__BASIC_HASH__", os.environ["CADDY_PASS_HASH"])):
+              s = s.replace(k, v)
+          open(p, "w").write(s)
+          PY
+          echo "CADDY_CFG=$CADDY_DIR/Caddyfile" >> "$GITHUB_ENV"
+          caddy fmt --overwrite "$CADDY_DIR/Caddyfile" || true
+          caddy validate --config "$CADDY_DIR/Caddyfile" --adapter caddyfile
+          nohup caddy run --config "$CADDY_DIR/Caddyfile" --adapter caddyfile \
+            > "$LOG_DIR/caddy.log" 2>&1 &
+          echo "CADDY_PID=$!" >> "$GITHUB_ENV"
+          sleep 4
+          N=$(curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PROXY_PORT}/" || echo 000)
+          A=$(curl -sS -o /dev/null -w '%{http_code}' -u "${OPENCODE_BASIC_USER}:${OPENCODE_BASIC_PASS}" \
+              "http://127.0.0.1:${PROXY_PORT}/" || echo 000)
+          echo "no-auth=$N with-auth=$A"
+          [ "$N" = "401" ] || { echo "❌ basic_auth کار نمی‌کند"; exit 1; }
+          [ "$A" != "401" ] && [ "$A" != "000" ] || { echo "❌ احراز هویت رد شد"; exit 1; }
+          echo "✅ Basic Auth فعال"
+
+      - name: راه‌اندازی تونل Cloudflare
+        run: |
+          set -euo pipefail
+          curl -fL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o "$RUNNER_TEMP/cloudflared"
+          chmod +x "$RUNNER_TEMP/cloudflared"
+          echo "CLOUDFLARED_BIN=$RUNNER_TEMP/cloudflared" >> "$GITHUB_ENV"
+          nohup "$RUNNER_TEMP/cloudflared" tunnel --url "http://127.0.0.1:${PROXY_PORT}" \
+            --no-autoupdate > "$LOG_DIR/cloudflare.log" 2>&1 &
+          echo "CLOUDFLARED_PID=$!" >> "$GITHUB_ENV"
+          URL=""
+          for i in $(seq 1 20); do
+            URL=$(grep -oP 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$LOG_DIR/cloudflare.log" | head -n1 || true)
+            [ -n "$URL" ] && break
+            sleep 2
+          done
+          [ -n "$URL" ] || { cat "$LOG_DIR/cloudflare.log"; exit 1; }
+          echo "TUNNEL_URL=$URL" >> "$GITHUB_ENV"
+          echo "$URL" > "$LOG_DIR/opencode-url.txt"
+          echo "✅ Tunnel: $URL"
+
+      - name: خلاصه
+        run: |
+          set -uo pipefail
+          MC=$(python3 -c "import json;print(len(json.load(open('$XDG_CONFIG_HOME/opencode/opencode.json'))['provider']['opencode-unlimited-proxy']['models']))" 2>/dev/null || echo '?')
+          PC=$(wc -l < "$LOG_DIR/proxy-out/proxies.txt" 2>/dev/null || echo 0)
+          {
+            echo "## OpenCode Web 🔐"
+            echo ""
+            echo "| مورد | مقدار |"
+            echo "|---|---|"
+            echo "| URL | ${TUNNEL_URL} |"
+            echo "| Username | \`${OPENCODE_BASIC_USER}\` |"
+            echo "| Password | در آرتیفکت \`opencode-credentials\` |"
+            echo "| Egress | \`${EGRESS_MODE}\` |"
+            echo "| SOCKS proxies | \`${PC}\` |"
+            echo "| Models | \`${MC}\` |"
+            echo "| Duration | ${DURATION}m |"
+            echo ""
+            echo "> اگر پاسخ‌ها 429 شد، سهمیهٔ upstream تمام شده — سرویس سالم است و ری‌استارت نمی‌شود."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ============================================================
+      # WATCHDOG اصلاح‌شده
+      # ============================================================
+      - name: نگهبانی (تشخیص سهمیه از خرابی)
+        run: |
+          set -uo pipefail
+          END_TIME=$(( $(date +%s) + DURATION * 60 ))
+          DIAG="$LOG_DIR/diagnostics"
+          HEALTHF=/tmp/wd-health.json
+          ITER=0
+          PROXY_DEAD=0; QUOTA_UNTIL=0
+          ENGINE_RESTARTS=0; MAX_ENGINE_RESTARTS=4; LAST_ENGINE_RESTART=0
+          OC_FAILS=0; CAD_FAILS=0; TUN_FAILS=0
+          HARVESTS=0; MAX_HARVESTS=3; LAST_HARVEST=$(date +%s)
+
+          log() { echo "[$(date '+%H:%M:%S')] $*"; }
+          section() { echo ""; echo "=== $* ==="; }
+
+          http_code() {
+            local c
+            c=$(curl -sS --connect-timeout 5 --max-time 15 -o "$2" -w '%{http_code}' "$1" 2>/dev/null) || true
+            echo "${c:-000}"
+          }
+
+          engine_running() {
+            [ "$(docker inspect -f '{{.State.Running}}' ofu-engine 2>/dev/null || echo false)" = "true" ]
+          }
+
+          proxy_state() {
+            local c
+            c=$(http_code http://127.0.0.1:8080/healthz "$HEALTHF")
+            python3 "$HELPERS/health.py" "$HEALTHF" "$EGRESS_MODE" "$c"
+          }
+
+          light_diag() {
+            section "DIAG: $1"
+            docker ps -a --format 'table {{.Names}}\t{{.Status}}' || true
+            cat "$HEALTHF" 2>/dev/null | head -c 900; echo
+            (cd "$STACK_DIR" && docker compose logs --tail=25 opencode-engine) 2>&1 | tail -25 || true
+          }
+
+          full_diag() {
+            local R="$DIAG/diag-$(date +%Y%m%d-%H%M%S)-$1.log"
+            {
+              date -Is; echo "reason: $1"; echo "mode: $EGRESS_MODE"
+              echo "--- uptime/mem ---"; uptime; free -h
+              echo "--- ports ---"; ss -lntp 2>/dev/null || true
+              echo "--- docker ---"; docker ps -a
+              echo "--- healthz ---"; curl -sS --max-time 8 -i http://127.0.0.1:8080/healthz || true
+              echo "--- models (با کلید) ---"
+              curl -sS --max-time 10 -o /dev/null -w 'HTTP %{http_code}\n' \
+                -H "Authorization: Bearer ${PROXY_SERVER_KEY}" \
+                http://127.0.0.1:8080/v1/models || true
+              echo "--- engine ---"; (cd "$STACK_DIR" && docker compose logs --timestamps --tail=200 opencode-engine) 2>&1
+              echo "--- opencode ---"; tail -n 80 "$LOG_DIR/opencode.log" 2>/dev/null
+              echo "--- caddy ---"; tail -n 40 "$LOG_DIR/caddy.log" 2>/dev/null
+              echo "--- tunnel ---"; tail -n 40 "$LOG_DIR/cloudflare.log" 2>/dev/null
+              echo "--- egress ---"; ip -brief addr; ip route
+            } > "$R" 2>&1
+            log "full diag -> $R"
+          }
+
+          # فقط موتور را ری‌استارت کن؛ config-init دست‌نخورده
+          restart_engine() {
+            local now; now=$(date +%s)
+            if [ "$ENGINE_RESTARTS" -ge "$MAX_ENGINE_RESTARTS" ]; then
+              log "⛔ بودجهٔ ری‌استارت موتور تمام شد"; return 1; fi
+            if [ $((now - LAST_ENGINE_RESTART)) -lt 600 ]; then
+              log "⏸ فاصلهٔ ۱۰ دقیقه‌ای بین ری‌استارت‌ها رعایت نشده"; return 1; fi
+            ENGINE_RESTARTS=$((ENGINE_RESTARTS+1)); LAST_ENGINE_RESTART=$now
+            section "RESTART ENGINE ($ENGINE_RESTARTS/$MAX_ENGINE_RESTARTS)"
+            docker restart ofu-engine >/dev/null 2>&1 || true
+            # WARP init ممکن است دقیقه‌ها طول بکشد؛ فقط زنده‌شدن listener را بخواه
+            for i in $(seq 1 90); do
+              local c; c=$(http_code http://127.0.0.1:8080/healthz /tmp/wd-r.json)
+              if [ "$c" != "000" ]; then log "✅ listener up (HTTP $c)"; PROXY_DEAD=0; return 0; fi
+              engine_running || { log "کانتینر اجرا نمی‌شود"; break; }
+              sleep 3
+            done
+            full_diag engine-restart-failed; return 1
+          }
+
+          reseed_engine() {
+            (cd "$STACK_DIR" && docker compose up -d --force-recreate config-init) || true
+            sleep 3
+            docker restart ofu-engine >/dev/null 2>&1 || true
+            for i in $(seq 1 60); do
+              local c; c=$(http_code http://127.0.0.1:8080/healthz /tmp/wd-rs.json)
+              [ "$c" != "000" ] && { log "✅ reseed ok (HTTP $c)"; return 0; }
+              sleep 3
+            done
+            return 1
+          }
+
+          reharvest() {
+            [ "$EGRESS_MODE" = "socks" ] || return 1
+            [ "$HARVESTS" -lt "$MAX_HARVESTS" ] || return 1
+            HARVESTS=$((HARVESTS+1)); LAST_HARVEST=$(date +%s)
+            section "RE-HARVEST SOCKS ($HARVESTS/$MAX_HARVESTS)"
+            cp "$LOG_DIR/proxy-out/proxies.txt" "$LOG_DIR/proxy-out/proxies.prev.txt" 2>/dev/null || true
+            WORKERS=500 MAX_KEEP="$MAX_PROXIES" GATE=1 OUT_DIR="$LOG_DIR/proxy-out" \
+              timeout 600 python3 "$HELPERS/socks_harvest.py" || true
+            if [ -s "$LOG_DIR/proxy-out/proxies.txt" ]; then
+              (cd "$STACK_DIR" && python3 "$HELPERS/patch_config.py" socks) && reseed_engine
+            else
+              log "پروکسی جدیدی پیدا نشد"
+              cp "$LOG_DIR/proxy-out/proxies.prev.txt" "$LOG_DIR/proxy-out/proxies.txt" 2>/dev/null || true
+            fi
+          }
+
+          restart_opencode() {
+            section "RESTART OPENCODE"
+            pkill -f '[o]pencode web' || true; sleep 2
+            nohup opencode web --port "$OPENCODE_PORT" --hostname 127.0.0.1 \
+              > "$LOG_DIR/opencode.log" 2>&1 &
+            OC_FAILS=0; sleep 6
+            local c; c=$(http_code "http://127.0.0.1:${OPENCODE_PORT}/" /tmp/wd-oc.html)
+            log "OpenCode: HTTP $c"; [ "$c" != "000" ]
+          }
+
+          restart_caddy() {
+            section "RESTART CADDY"
+            pkill -x caddy || true; sleep 2
+            caddy validate --config "$CADDY_CFG" --adapter caddyfile || return 1
+            nohup caddy run --config "$CADDY_CFG" --adapter caddyfile > "$LOG_DIR/caddy.log" 2>&1 &
+            CAD_FAILS=0; sleep 4
+            local c; c=$(http_code "http://127.0.0.1:${PROXY_PORT}/" /tmp/wd-cad.html)
+            log "Caddy: HTTP $c"; [ "$c" = "401" ]
+          }
+
+          restart_tunnel() {
+            section "RESTART TUNNEL"
+            pkill -x cloudflared || true; sleep 2
+            nohup "$CLOUDFLARED_BIN" tunnel --url "http://127.0.0.1:${PROXY_PORT}" \
+              --no-autoupdate > "$LOG_DIR/cloudflare.log" 2>&1 &
+            TUN_FAILS=0
+            local u=""
+            for i in $(seq 1 20); do
+              u=$(grep -oP 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$LOG_DIR/cloudflare.log" | head -n1 || true)
+              [ -n "$u" ] && break; sleep 2
+            done
+            if [ -n "$u" ]; then
+              TUNNEL_URL="$u"; echo "$u" > "$LOG_DIR/opencode-url.txt"
+              echo "TUNNEL_URL=$u" >> "$GITHUB_ENV"
+              log "✅ new tunnel: $u"
+              printf '\n**🔄 URL جدید:** %s\n' "$u" >> "$GITHUB_STEP_SUMMARY"
+              return 0
+            fi
+            full_diag tunnel-failed; return 1
+          }
+
+          section "WATCHDOG START"
+          log "mode=$EGRESS_MODE duration=${DURATION}m url=$TUNNEL_URL"
+          full_diag initial
+
+          while [ "$(date +%s)" -lt "$END_TIME" ]; do
+            ITER=$((ITER+1))
+            R=$(( END_TIME - $(date +%s) ))
+            section "CYCLE #$ITER — ${R}s left"
+
+            IFS='|' read -r ST INFO < <(proxy_state)
+            log "proxy: $ST | $INFO"
+
+            case "$ST" in
+              OK)
+                PROXY_DEAD=0; QUOTA_UNTIL=0 ;;
+
+              QUOTA)
+                # ★ اصلاح اصلی: سهمیهٔ سوخته ≠ سرویس مرده. ری‌استارت ممنوع.
+                PROXY_DEAD=0
+                NOW=$(date +%s)
+                if [ "$NOW" -gt "$QUOTA_UNTIL" ]; then
+                  QUOTA_UNTIL=$((NOW + 900))
+                  log "⏳ سهمیهٔ egress تمام شده — backoff ۱۵ دقیقه، بدون ری‌استارت"
+                fi
+                if [ "$EGRESS_MODE" = "socks" ] && [ $((NOW - LAST_HARVEST)) -gt 1200 ]; then
+                  reharvest || true
+                fi ;;
+
+              DISCOVERY|DEGRADED|BADJSON)
+                PROXY_DEAD=0
+                log "ℹ️ وضعیت گذرا — تحمل می‌شود" ;;
+
+              NOLISTENER)
+                if engine_running; then
+                  PROXY_DEAD=$((PROXY_DEAD+1))
+                  log "listener نیست ولی کانتینر زنده است ($PROXY_DEAD/10) — WARP init؟"
+                  [ "$PROXY_DEAD" -ge 10 ] && { restart_engine || true; PROXY_DEAD=0; }
+                else
+                  log "❌ کانتینر اجرا نمی‌شود"
+                  light_diag container-down
+                  restart_engine || true; PROXY_DEAD=0
+                fi ;;
+            esac
+
+            OC=$(http_code "http://127.0.0.1:${OPENCODE_PORT}/" /tmp/wd-oc.html)
+            if [ "$OC" = "000" ]; then OC_FAILS=$((OC_FAILS+1)); else OC_FAILS=0; fi
+            log "opencode: HTTP $OC (fails=$OC_FAILS)"
+            [ "$OC_FAILS" -ge 3 ] && { restart_opencode || true; }
+
+            CAD=$(http_code "http://127.0.0.1:${PROXY_PORT}/" /tmp/wd-cad.html)
+            if [ "$CAD" != "401" ]; then CAD_FAILS=$((CAD_FAILS+1)); else CAD_FAILS=0; fi
+            log "caddy: HTTP $CAD (fails=$CAD_FAILS)"
+            [ "$CAD_FAILS" -ge 3 ] && { restart_caddy || true; }
+
+            TUN=$(http_code "$TUNNEL_URL" /tmp/wd-tun.html)
+            case "$TUN" in 000|502|530) TUN_FAILS=$((TUN_FAILS+1));; *) TUN_FAILS=0;; esac
+            log "tunnel: HTTP $TUN (fails=$TUN_FAILS)"
+            [ "$TUN_FAILS" -ge 3 ] && { restart_tunnel || true; }
+
+            if [ $((ITER % 10)) -eq 0 ]; then
+              section "SNAPSHOT"
+              tail -n 12 "$LOG_DIR/opencode.log" 2>/dev/null || true
+              (cd "$STACK_DIR" && docker compose logs --tail=20 opencode-engine) 2>&1 | tail -20 || true
+            fi
+
+            sleep 30
+          done
+
+          section "WATCHDOG FINISHED"
+          full_diag final
+          log "diagnostics: $DIAG"
+
+      # ============================================================
+      - name: آپلود لاگ‌ها
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-logs
+          path: |
+            ${{ env.LOG_DIR }}/*.log
+            ${{ env.LOG_DIR }}/diagnostics/*.log
+            ${{ env.LOG_DIR }}/models.json
+            ${{ env.LOG_DIR }}/smoke.json
+            ${{ env.LOG_DIR }}/proxy-out/*
+            ${{ env.LOG_DIR }}/opencode-url.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: آپلود اعتبارنامه (کوتاه‌مدت)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-credentials
+          path: ${{ env.LOG_DIR }}/opencode-credentials.txt
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: ثبت وضعیت در Git (بدون فایل حساس)
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p status
+          PC=$(wc -l < "$LOG_DIR/proxy-out/proxies.txt" 2>/dev/null || echo 0)
+          {
+            echo "# آخرین اجرا"
+            echo ""
+            echo "- زمان: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "- مدت: ${DURATION} دقیقه"
+            echo "- egress: ${EGRESS_MODE:-unknown}"
+            echo "- پروکسی SOCKS: ${PC}"
+            echo "- run: ${{ github.run_id }}"
+          } > status/last-run.md
+
+          # هرگز git add -A (باینری cloudflared و رمزها را می‌برد)
+          git add .gitignore status/last-run.md
+          if git diff --cached --quiet; then echo "ℹ️ تغییری نیست"; exit 0; fi
+          if git diff --cached -U0 | grep -aiE '(api[_-]?key|secret|token|password|Bearer)[=:" ]+[A-Za-z0-9_\-]{16,}'; then
+            echo "❌ الگوی secret"; git reset; exit 1; fi
+          git commit -m "chore(opencode): run status $(date -u +%Y-%m-%dT%H:%M:%SZ) [skip ci]"
+          for a in 1 2 3; do
+            git push origin "HEAD:${GITHUB_REF_NAME}" && { echo "✅ push"; exit 0; }
+            git pull --rebase --autostash origin "$GITHUB_REF_NAME" || true
+            sleep 3
+          done
+          echo "::warning::push ناموفق"; exit 0
