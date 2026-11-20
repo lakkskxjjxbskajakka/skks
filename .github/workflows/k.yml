@@ -28,8 +28,10 @@ jobs:
     env:
       OPENCODE_PORT: ${{ inputs.opencode_port }}
       DURATION: ${{ inputs.duration }}
+      OPENCODE_PASSWORD: "oc123"
 
     steps:
+
       # -----------------------------------------------
       # 1. Checkout
       # -----------------------------------------------
@@ -59,7 +61,6 @@ jobs:
 
           hash -r
 
-          echo "OpenCode version:"
           opencode --version
 
       # -----------------------------------------------
@@ -97,7 +98,7 @@ jobs:
           opencode-unlimited --help || true
 
       # -----------------------------------------------
-      # 5. Initial plugin
+      # 5. First Plugin Initialization
       # -----------------------------------------------
 
       - name: First Plugin Initialization
@@ -110,8 +111,7 @@ jobs:
           opencode-unlimited plugin
 
       # -----------------------------------------------
-      # 6. Initial OpenCode serve
-      #    Equivalent to starting and pressing Ctrl+C
+      # 6. Initial OpenCode Serve
       # -----------------------------------------------
 
       - name: Initial OpenCode Serve
@@ -125,10 +125,10 @@ jobs:
 
           echo "Starting initial OpenCode server..."
 
-          opencode serve \
+          nohup opencode serve \
             --port "$OPENCODE_PORT" \
             --hostname 127.0.0.1 \
-            > "$LOG_DIR/initial.log" 2>&1 &
+            > "$LOG_DIR/initial.log" 2>&1 < /dev/null &
 
           INITIAL_PID=$!
 
@@ -137,12 +137,13 @@ jobs:
           for i in $(seq 1 45); do
 
             CODE=$(curl -s \
+              -u "opencode:${OPENCODE_PASSWORD}" \
               -o /dev/null \
               -w "%{http_code}" \
               --connect-timeout 2 \
               "http://127.0.0.1:${OPENCODE_PORT}/" || true)
 
-            if [[ "$CODE" =~ ^(200|30[0-9]|401|403|404|426)$ ]]; then
+            if [[ "$CODE" =~ ^(200|30[0-9]|403|404|426)$ ]]; then
               echo "OpenCode ready: HTTP $CODE"
               READY=1
               break
@@ -165,7 +166,7 @@ jobs:
           echo "Initial server stopped."
 
       # -----------------------------------------------
-      # 7. Second plugin initialization
+      # 7. Second Plugin Initialization
       # -----------------------------------------------
 
       - name: Second Plugin Initialization
@@ -178,7 +179,7 @@ jobs:
           opencode-unlimited plugin
 
       # -----------------------------------------------
-      # 8. Start OpenCode Unlimited serve
+      # 8. Start OpenCode Unlimited Serve
       # -----------------------------------------------
 
       - name: Start OpenCode Unlimited Serve
@@ -208,12 +209,13 @@ jobs:
           for i in $(seq 1 45); do
 
             CODE=$(curl -s \
+              -u "opencode:${OPENCODE_PASSWORD}" \
               -o /dev/null \
               -w "%{http_code}" \
               --connect-timeout 2 \
               "http://127.0.0.1:${OPENCODE_PORT}/" || true)
 
-            if [[ "$CODE" =~ ^(200|30[0-9]|401|403|404|426)$ ]]; then
+            if [[ "$CODE" =~ ^(200|30[0-9]|403|404|426)$ ]]; then
               echo "OpenCode ready: HTTP $CODE"
               READY=1
               break
@@ -285,7 +287,7 @@ jobs:
           echo "Cloudflare URL: $TUNNEL_URL"
 
       # -----------------------------------------------
-      # 10. Pair
+      # 10. OpenCode Unlimited Pair
       # -----------------------------------------------
 
       - name: OpenCode Unlimited Pair
@@ -297,13 +299,11 @@ jobs:
 
           echo "Creating OpenCode pairing link..."
 
-          # Correct syntax:
-          # No --server argument.
           opencode-unlimited run pair \
             --url "$TUNNEL_URL"
 
       # -----------------------------------------------
-      # 11. Summary
+      # 11. Session Summary
       # -----------------------------------------------
 
       - name: Session Summary
@@ -315,6 +315,9 @@ jobs:
             echo "- **OpenCode:** V2"
             echo "- **Tunnel:** $TUNNEL_URL"
             echo "- **Port:** $OPENCODE_PORT"
+            echo "- **Authentication:** Enabled"
+            echo "- **Username:** opencode"
+            echo "- **Password:** Configured"
             echo "- **Duration:** $DURATION minutes"
             echo "- **Status:** Active"
             echo ""
@@ -350,14 +353,18 @@ jobs:
 
             echo "Remaining: $((REMAINING / 60))m $((REMAINING % 60))s"
 
+            # ---------------------------------------
             # OpenCode health
+            # ---------------------------------------
+
             CODE=$(curl -s \
+              -u "opencode:${OPENCODE_PASSWORD}" \
               -o /dev/null \
               -w "%{http_code}" \
               --connect-timeout 5 \
               "http://127.0.0.1:${OPENCODE_PORT}/" || true)
 
-            if [[ ! "$CODE" =~ ^(200|30[0-9]|401|403|404|426)$ ]]; then
+            if [[ ! "$CODE" =~ ^(200|30[0-9]|403|404|426)$ ]]; then
 
               echo "OpenCode unavailable. Restarting..."
 
@@ -372,44 +379,77 @@ jobs:
 
               echo "$!" > "$RUNNER_TEMP/opencode.pid"
 
-              sleep 8
+              sleep 10
+
             fi
 
-            # Cloudflare process health
-            if [ -f "$RUNNER_TEMP/cloudflared.pid" ]; then
+            # ---------------------------------------
+            # Cloudflare health
+            # ---------------------------------------
 
-              CF_PID=$(cat "$RUNNER_TEMP/cloudflared.pid")
+            CF_PID=$(cat "$RUNNER_TEMP/cloudflared.pid" 2>/dev/null || echo "")
 
-              if ! kill -0 "$CF_PID" 2>/dev/null; then
+            TUNNEL_CODE=$(curl -s \
+              -u "opencode:${OPENCODE_PASSWORD}" \
+              -o /dev/null \
+              -w "%{http_code}" \
+              --connect-timeout 5 \
+              "$TUNNEL_URL/" || true)
 
-                echo "Cloudflare stopped. Restarting..."
+            if [[ -z "$CF_PID" ]] || \
+               ! kill -0 "$CF_PID" 2>/dev/null || \
+               [[ "$TUNNEL_CODE" == "000" ]] || \
+               [[ "$TUNNEL_CODE" == "502" ]] || \
+               [[ "$TUNNEL_CODE" == "530" ]]; then
 
-                nohup "$RUNNER_TEMP/cloudflared" tunnel \
-                  --url "http://127.0.0.1:${OPENCODE_PORT}" \
-                  --no-autoupdate \
-                  > "$LOG_DIR/cloudflare.log" 2>&1 < /dev/null &
+              echo "Cloudflare tunnel unavailable. Rebuilding..."
 
-                echo "$!" > "$RUNNER_TEMP/cloudflared.pid"
+              if [ -n "$CF_PID" ]; then
+                kill "$CF_PID" 2>/dev/null || true
+              fi
 
-                sleep 10
+              sleep 2
+
+              nohup "$RUNNER_TEMP/cloudflared" tunnel \
+                --url "http://127.0.0.1:${OPENCODE_PORT}" \
+                --no-autoupdate \
+                > "$LOG_DIR/cloudflare.log" 2>&1 < /dev/null &
+
+              NEW_PID=$!
+
+              echo "$NEW_PID" > "$RUNNER_TEMP/cloudflared.pid"
+
+              NEW_URL=""
+
+              for i in $(seq 1 30); do
 
                 NEW_URL=$(grep -oE \
                   'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' \
                   "$LOG_DIR/cloudflare.log" | head -n 1 || true)
 
                 if [ -n "$NEW_URL" ]; then
-
-                  echo "New Cloudflare URL: $NEW_URL"
-
-                  echo "$NEW_URL" > "$RUNNER_TEMP/opencode-url.txt"
-
-                  TUNNEL_URL="$NEW_URL"
-
-                  opencode-unlimited run pair \
-                    --url "$NEW_URL" || true
-
+                  break
                 fi
+
+                sleep 2
+              done
+
+              if [ -n "$NEW_URL" ]; then
+
+                TUNNEL_URL="$NEW_URL"
+
+                echo "$NEW_URL" > "$RUNNER_TEMP/opencode-url.txt"
+
+                echo "New tunnel: $NEW_URL"
+
+                # Generate new pairing link
+                opencode-unlimited run pair \
+                  --url "$NEW_URL" || true
+
+              else
+                echo "Failed to rebuild Cloudflare tunnel."
               fi
+
             fi
 
             sleep 30
@@ -430,13 +470,15 @@ jobs:
 
           echo "Cleaning up..."
 
-          if [ -f "$RUNNER_TEMP/cloudflared.pid" ]; then
-            kill "$(cat "$RUNNER_TEMP/cloudflared.pid")" 2>/dev/null || true
-          fi
+          for PID_FILE in \
+            "$RUNNER_TEMP/cloudflared.pid" \
+            "$RUNNER_TEMP/opencode.pid"; do
 
-          if [ -f "$RUNNER_TEMP/opencode.pid" ]; then
-            kill "$(cat "$RUNNER_TEMP/opencode.pid")" 2>/dev/null || true
-          fi
+            if [ -f "$PID_FILE" ]; then
+              kill "$(cat "$PID_FILE")" 2>/dev/null || true
+            fi
+
+          done
 
           echo "Cleanup completed."
 
