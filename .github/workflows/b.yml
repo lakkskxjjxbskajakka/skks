@@ -94,7 +94,7 @@ jobs:
           git clone https://github.com/ebouther/opencode-unlimited-proxy.git /tmp/opencode-unlimited-proxy
           cd /tmp/opencode-unlimited-proxy/stack
 
-          # ✅ فرمت صحیح: رشته ساده، نه آرایه JSON
+          # فرمت صحیح: رشته ساده، نه آرایه JSON
           cat > .env <<EOF
           WARP_ACCEPT_TOS=1
           WARP_SOURCE_IPV6=
@@ -144,9 +144,9 @@ jobs:
           fi
 
       # ─────────────────────────────────────────────
-      # ساخت کانفیگ OpenCode
+      # ساخت کانفیگ OpenCode با همه مدل‌های پشتیبانی‌شده
       # ─────────────────────────────────────────────
-      - name: ساخت کانفیگ OpenCode
+      - name: ساخت کانفیگ OpenCode (همه مدل‌ها)
         run: |
           set -euo pipefail
           CONFIG_FILE="$XDG_CONFIG_HOME/opencode/opencode.json"
@@ -154,9 +154,57 @@ jobs:
           PASS_HASH=$(caddy hash-password --plaintext "$OPENCODE_BASIC_PASS")
           echo "CADDY_PASS_HASH=$PASS_HASH" >> "$GITHUB_ENV"
 
-          python3 - "$CONFIG_FILE" "$PROXY_SERVER_KEY" <<'PY'
+          echo "📋 دریافت لیست مدل‌ها از پروکسی..."
+          curl -sf --max-time 15 \
+            -H "Authorization: Bearer ${PROXY_SERVER_KEY}" \
+            http://127.0.0.1:8080/v1/models > /tmp/models.json || {
+              echo "❌ دریافت لیست مدل‌ها شکست خورد"
+              cat /tmp/models.json || true
+              exit 1
+            }
+
+          echo "----- نمونه‌ای از پاسخ /v1/models -----"
+          python3 -c "import json;d=json.load(open('/tmp/models.json'));print(json.dumps(d,indent=2)[:2000])" || true
+          echo "------------------------------------------"
+
+          python3 - "$CONFIG_FILE" "$PROXY_SERVER_KEY" /tmp/models.json <<'PY'
           import json, sys
-          out_path, api_key = sys.argv[1], sys.argv[2]
+
+          out_path, api_key, models_path = sys.argv[1], sys.argv[2], sys.argv[3]
+
+          try:
+              raw = json.load(open(models_path))
+          except Exception as e:
+              print(f"❌ خواندن پاسخ مدل‌ها شکست خورد: {e}")
+              sys.exit(1)
+
+          if isinstance(raw, list):
+              items = raw
+          elif isinstance(raw, dict) and isinstance(raw.get("data"), list):
+              items = raw["data"]
+          elif isinstance(raw, dict) and isinstance(raw.get("models"), list):
+              items = raw["models"]
+          else:
+              print(f"❌ فرمت ناشناخته پاسخ: {type(raw)}")
+              sys.exit(1)
+
+          model_ids = []
+          for it in items:
+              if isinstance(it, dict):
+                  mid = it.get("id") or it.get("name") or it.get("model")
+              else:
+                  mid = str(it)
+              if mid:
+                  model_ids.append(str(mid).strip())
+
+          seen = set()
+          model_ids = [m for m in model_ids if not (m in seen or seen.add(m))]
+
+          if not model_ids:
+              print("⚠️ هیچ مدلی پیدا نشد؛ از مدل پیش‌فرض استفاده می‌شود.")
+              model_ids = ["beam-free"]
+
+          models = {mid: {"name": mid} for mid in model_ids}
 
           config = {
               "$schema": "https://opencode.ai/config.json",
@@ -168,24 +216,24 @@ jobs:
                           "baseURL": "http://127.0.0.1:8080/v1",
                           "apiKey": api_key,
                       },
-                      "models": {
-                          "beam-free": {"name": "beam-free"},
-                      },
+                      "models": models,
                   }
               },
-              "model": "opencode-unlimited-proxy/beam-free",
+              "model": f"opencode-unlimited-proxy/{model_ids[0]}",
               "autoupdate": False,
               "share": "disabled",
           }
 
           json.dump(config, open(out_path, "w"), ensure_ascii=False, indent=2)
-          print(f"✅ کانفیگ OpenCode ساخته شد. مدل پیش‌فرض: {config['model']}")
+          print(f"✅ کانفیگ با {len(models)} مدل ساخته شد.")
+          print(f"   مدل پیش‌فرض: {config['model']}")
+          print(f"   چند نمونه: {model_ids[:5]}")
           PY
 
           chmod 600 "$CONFIG_FILE"
-          echo "----- محتوای کانفیگ -----"
-          cat "$CONFIG_FILE"
-          echo "-------------------------"
+          echo "----- تعداد مدل‌ها در کانفیگ -----"
+          python3 -c "import json;c=json.load(open('$CONFIG_FILE'));print(len(c['provider']['opencode-unlimited-proxy']['models']))"
+          echo "--------------------------------"
 
       - name: اجرای OpenCode Web
         run: |
@@ -302,6 +350,7 @@ jobs:
             echo "- **Password:** \`admin\`"
             echo "- **پروکسی:** opencode-unlimited-proxy (حالت استاندارد با WARP داخلی)"
             echo "- **WARP Pool Size:** \`${WARP_POOL_SIZE}\`"
+            echo "- **تعداد مدل‌ها در کانفیگ:** \`$(python3 -c \"import json;c=json.load(open('$XDG_CONFIG_HOME/opencode/opencode.json'));print(len(c['provider']['opencode-unlimited-proxy']['models']))\" 2>/dev/null || echo '?')\`"
             echo "- **مدت:** ${{ github.event.inputs.duration }} دقیقه"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -368,6 +417,7 @@ jobs:
           path: |
             ${{ env.LOG_DIR }}/*.log
             opencode-url.txt
+            /tmp/models.json
           if-no-files-found: ignore
 
       - name: Commit و push اجباری
