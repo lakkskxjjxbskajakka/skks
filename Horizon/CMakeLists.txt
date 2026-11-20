@@ -14,6 +14,7 @@ option(HR_BUILD_GAME "Build the Horizon driving demo" ON)
 option(HR_BUILD_TESTS "Build unit tests" ON)
 option(HR_BUILD_BENCHMARKS "Build benchmarks" ON)
 option(HR_ENABLE_ASAN "Enable AddressSanitizer (debug only)" OFF)
+option(HR_ENABLE_VALIDATION "Enable Validation Layers" OFF)
 
 if(UNIX)
   add_compile_definitions(_POSIX_C_SOURCE=200809L)
@@ -71,6 +72,8 @@ set(HR_ENGINE_SOURCES
   engine/src/core/math.c
   engine/src/core/memory.c
   engine/src/core/jobs.c
+  engine/src/core/ecs.c
+  engine/src/core/scene.c
   engine/src/platform/platform_linux.c
   engine/src/platform/platform_win32.c
   engine/src/renderer/vk_common.c

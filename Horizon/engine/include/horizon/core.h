@@ -41,6 +41,7 @@ typedef ptrdiff_t isize;
 #define HR_MIB(n) (HR_KIB(n) * 1024u)
 #define HR_GIB(n) (HR_MIB(n) * 1024u)
 #define HR_UNUSED(x) ((void)(x))
+#define HR_ENTITY_INVALID ((HrEntity)0)
 
 /* ------------------------------------------------------------------ logging */
 typedef enum HrLogLevel {
