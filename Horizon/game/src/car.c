@@ -189,7 +189,7 @@ void hr_world_build_car(HrWorld* w) {
     w->mesh_car_glass = upload(w, &m, "car_glass");
 
     hr_mesh_init(&m, "car_roof");
-    hr_mesh_box(&m, v3(0, 1.325f, 0.05f), v3(0.50f, 0.015f, 0.40f));
+    hr_mesh_box(&m, v3(0, 1.325f, 0.05f), v3(0.44f, 0.012f, 0.34f));
     w->mesh_car_roof = upload(w, &m, "car_roof");
 
     hr_mesh_init(&m, "car_trim");
@@ -205,6 +205,8 @@ void hr_world_build_car(HrWorld* w) {
     hr_mesh_box(&m, v3(-0.98f, 0.865f, 0.56f), v3(0.10f, 0.052f, 0.075f));
     hr_mesh_box(&m, v3(0.92f, 0.82f, 0.56f), v3(0.05f, 0.028f, 0.04f));
     hr_mesh_box(&m, v3(-0.92f, 0.82f, 0.56f), v3(0.05f, 0.028f, 0.04f));
+    hr_mesh_box(&m, v3(0.90f, 0.56f, -0.42f), v3(0.085f, 0.10f, 0.34f));
+    hr_mesh_box(&m, v3(-0.90f, 0.56f, -0.42f), v3(0.085f, 0.10f, 0.34f));
     w->mesh_car_trim = upload(w, &m, "car_trim");
 
     hr_mesh_init(&m, "car_metal");
@@ -223,7 +225,9 @@ void hr_world_build_car(HrWorld* w) {
     w->mesh_car_light_w = upload(w, &m, "car_light_w");
 
     hr_mesh_init(&m, "car_light_r");
-    hr_mesh_box(&m, v3(0, 0.655f, -2.155f), v3(0.62f, 0.045f, 0.035f));
+    hr_mesh_box(&m, v3(0.43f, 0.655f, -2.155f), v3(0.31f, 0.045f, 0.032f));
+    hr_mesh_box(&m, v3(-0.43f, 0.655f, -2.155f), v3(0.31f, 0.045f, 0.032f));
+    hr_mesh_box(&m, v3(0, 0.655f, -2.145f), v3(0.10f, 0.012f, 0.020f));
     w->mesh_car_light_r = upload(w, &m, "car_light_r");
 
     hr_mesh_init(&m, "car_wheel");
@@ -243,7 +247,7 @@ Mat4 hr_car_transform(const HrWorld* w) {
 
 void hr_world_draw_car(HrWorld* w, HrRenderer* r) {
     Mat4 car = hr_car_transform(w);
-    Vec4 paint = v4(0.52f, 0.028f, 0.018f, 1.0f);
+    Vec4 paint = v4(0.72f, 0.045f, 0.030f, 1.0f);
     Vec4 glass = v4(0.035f, 0.045f, 0.06f, 1.0f);
     Vec4 trim = v4(0.035f, 0.035f, 0.04f, 1.0f);
     Vec4 metal = v4(0.62f, 0.62f, 0.66f, 1.0f);
@@ -258,10 +262,10 @@ void hr_world_draw_car(HrWorld* w, HrRenderer* r) {
                      w->brake_lights ? v4(2.2f, 0.4f, 0.2f, 1) : v4(0.8f, 0.1f, 0.05f, 1));
 
     static const Vec3 wheel_pos[4] = {
-        { 0.90f, 0.365f,  1.34f},
-        {-0.90f, 0.365f,  1.34f},
-        { 0.90f, 0.365f, -1.38f},
-        {-0.90f, 0.365f, -1.38f},
+        { 0.99f, 0.365f,  1.34f},
+        {-0.99f, 0.365f,  1.34f},
+        { 0.99f, 0.365f, -1.38f},
+        {-0.99f, 0.365f, -1.38f},
     };
     for (int i = 0; i < 4; ++i) {
         Mat4 local = mat4_translate(wheel_pos[i]);

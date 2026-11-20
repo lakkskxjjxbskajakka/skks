@@ -240,18 +240,21 @@ static void build_vegetation_meshes(HrWorld* w) {
     hr_mesh_free(&trunk);
 
     hr_mesh_init(&pine, "pine");
-    cone_mesh(&pine, 1.6f, 2.05f, 3.2f, 8);
-    cone_mesh(&pine, 3.2f, 1.55f, 3.0f, 8);
-    cone_mesh(&pine, 4.7f, 1.05f, 2.6f, 8);
+    cone_mesh(&pine, 1.35f, 2.30f, 2.7f, 9);
+    cone_mesh(&pine, 2.55f, 1.95f, 2.7f, 9);
+    cone_mesh(&pine, 3.75f, 1.60f, 2.6f, 9);
+    cone_mesh(&pine, 4.85f, 1.20f, 2.4f, 9);
+    cone_mesh(&pine, 5.85f, 0.78f, 2.1f, 9);
     hr_mesh_recompute_normals(&pine);
     hr_mesh_finalize(&pine);
     w->mesh_pine = hr_renderer_upload_mesh(w->renderer, &pine, "pine");
     hr_mesh_free(&pine);
 
     hr_mesh_init(&leaf, "leaf");
-    hr_mesh_uv_sphere(&leaf, v3(0, 4.1f, 0), 1.75f, 6, 9);
-    hr_mesh_uv_sphere(&leaf, v3(0.95f, 4.8f, 0.25f), 1.15f, 5, 8);
-    hr_mesh_uv_sphere(&leaf, v3(-0.8f, 5.0f, -0.35f), 1.0f, 5, 8);
+    hr_mesh_uv_sphere(&leaf, v3(0, 4.3f, 0), 2.0f, 6, 10);
+    hr_mesh_uv_sphere(&leaf, v3(1.05f, 5.1f, 0.3f), 1.35f, 5, 9);
+    hr_mesh_uv_sphere(&leaf, v3(-0.95f, 5.35f, -0.4f), 1.2f, 5, 9);
+    hr_mesh_uv_sphere(&leaf, v3(0.15f, 5.9f, -0.1f), 0.95f, 5, 8);
     hr_mesh_finalize(&leaf);
     w->mesh_leaf = hr_renderer_upload_mesh(w->renderer, &leaf, "leaf");
     hr_mesh_free(&leaf);
@@ -283,7 +286,7 @@ static void build_rock_mesh(HrWorld* w) {
 }
 
 static void place_props(HrWorld* w) {
-    const int target_trees = 560;
+    const int target_trees = 880;
     const int target_rocks = 120;
     w->trees = (HrTreeInstance*)hr_calloc((usize)target_trees, sizeof(HrTreeInstance));
     w->rocks = (HrRockInstance*)hr_calloc((usize)target_rocks, sizeof(HrRockInstance));
@@ -299,15 +302,15 @@ static void place_props(HrWorld* w) {
         float z = sinf(a) * r;
         float dist = 0.0f;
         hr_road_nearest(w, x, z, &dist);
-        if (dist < 11.0f) continue;
+        if (dist < 10.5f) continue;
         HrTreeInstance* t = &w->trees[placed];
         t->pos = v3(x, hr_ground_height(w, x, z), z);
-        t->kind = (hr_hash_float(seed ^ 0x8811u) > 0.72f) ? 1 : 0;
-        t->scale = 0.75f + hr_hash_float(seed ^ 0x1234u) * 0.9f;
+        t->kind = (hr_hash_float(seed ^ 0x8811u) > 0.76f) ? 1 : 0;
+        t->scale = 0.75f + hr_hash_float(seed ^ 0x1234u) * 0.95f;
         t->rotation = hr_hash_float(seed ^ 0xabcd) * HR_TAU;
         float warmth = hr_hash_float(seed ^ 0x777u);
-        t->tint = v4(0.85f + warmth * 0.3f, 0.9f + hr_hash_float(seed ^ 0x999u) * 0.25f,
-                     0.75f + (1.0f - warmth) * 0.3f, 1.0f);
+        t->tint = v4(0.52f + warmth * 0.20f, 0.68f + hr_hash_float(seed ^ 0x999u) * 0.25f,
+                     0.48f + (1.0f - warmth) * 0.18f, 1.0f);
         placed++;
     }
     w->tree_count = placed;

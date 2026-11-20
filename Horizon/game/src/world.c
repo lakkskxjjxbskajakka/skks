@@ -15,12 +15,12 @@ bool hr_world_create(HrWorld** out, HrRenderer* r, HrJobSystem* js) {
     w->renderer = r;
     w->jobs = js;
 
-    w->sun_direction = v3_norm(v3(-0.55f, -0.30f, 0.78f));
-    w->sun_color = v3(1.0f, 0.56f, 0.28f);
-    w->ambient_sky = v3(0.23f, 0.34f, 0.54f);
-    w->ambient_ground = v3(0.13f, 0.10f, 0.075f);
-    w->fog_color = v3(0.66f, 0.48f, 0.36f);
-    w->fog_density = 0.00135f;
+    w->sun_direction = v3_norm(v3(-0.75f, -0.17f, -0.64f));
+    w->sun_color = v3(1.0f, 0.70f, 0.44f);
+    w->ambient_sky = v3(0.16f, 0.26f, 0.47f);
+    w->ambient_ground = v3(0.11f, 0.085f, 0.065f);
+    w->fog_color = v3(0.70f, 0.46f, 0.31f);
+    w->fog_density = 0.00155f;
     w->cam_fov = 58.0f;
 
     hr_world_build_environment(w);
@@ -182,9 +182,9 @@ void hr_world_update(HrWorld* w, float dt, const HrWorldInput* input) {
 void hr_world_render(HrWorld* w) {
     HrRenderer* r = w->renderer;
     hr_renderer_draw(r, w->mesh_terrain, HR_MAT_TERRAIN, mat4_identity(), v4s(1));
-    hr_renderer_draw(r, w->mesh_road, HR_MAT_ROAD, mat4_identity(), v4s(1));
+    hr_renderer_draw(r, w->mesh_road, HR_MAT_ROAD, mat4_identity(), v4(0.60f, 0.60f, 0.64f, 1));
     hr_renderer_draw(r, w->mesh_shoulder, HR_MAT_CONCRETE, mat4_identity(),
-                     v4(0.52f, 0.47f, 0.40f, 1));
+                     v4(0.44f, 0.40f, 0.34f, 1));
 
     for (int i = 0; i < w->tree_count; ++i) {
         const HrTreeInstance* t = &w->trees[i];
@@ -201,7 +201,7 @@ void hr_world_render(HrWorld* w) {
     }
     for (int i = 0; i < w->post_count; ++i) {
         Mat4 model = mat4_mul(mat4_translate(w->posts[i].pos), mat4_rotate_y(w->posts[i].rotation));
-        hr_renderer_draw(r, w->mesh_post, HR_MAT_METAL, model, v4(0.72f, 0.72f, 0.74f, 1));
+        hr_renderer_draw(r, w->mesh_post, HR_MAT_CONCRETE, model, v4(0.42f, 0.41f, 0.39f, 1));
     }
     hr_world_draw_car(w, r);
 }
@@ -217,22 +217,22 @@ void hr_world_describe_frame(HrWorld* w, HrFrameDesc* f, float render_scale, flo
     f->focus = w->car_pos;
     f->sun_direction = w->sun_direction;
     f->sun_color = w->sun_color;
-    f->sun_intensity = 3.5f;
+    f->sun_intensity = 0.0f;
     f->ambient_sky = w->ambient_sky;
     f->ambient_ground = w->ambient_ground;
-    f->exposure = 1.12f;
+    f->exposure = 1.2f;
     f->time = time;
     f->fog_color = w->fog_color;
     f->fog_density = w->fog_density;
     f->render_scale = render_scale;
     f->shadow_distance = 85.0f;
-    f->shadows_enabled = 1;
-    f->bloom_enabled = 1;
+    f->shadows_enabled = 0;
+    f->bloom_enabled = 0;
     f->fxaa_enabled = 1;
     f->shadow_resolution = 2048;
-    f->bloom_intensity = 0.55f;
-    f->saturation = 1.07f;
-    f->contrast = 1.035f;
+    f->bloom_intensity = 0.8f;
+    f->saturation = 1.10f;
+    f->contrast = 1.04f;
     f->vignette = 0.34f;
     f->grain = 0.010f;
 }

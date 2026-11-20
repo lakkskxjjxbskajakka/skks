@@ -51,18 +51,18 @@ void main() {
     float cos_sun = max(dot(dir, sun), 0.0);
     float h = max(dir.y, 0.0);
 
-    vec3 zenith = vec3(0.025, 0.075, 0.20);
-    vec3 mid = vec3(0.12, 0.26, 0.52);
+    vec3 zenith = vec3(0.035, 0.085, 0.24);
+    vec3 mid = vec3(0.19, 0.27, 0.48);
     vec3 horizon = g.fog_color_density.rgb;
 
     vec3 sky = mix(horizon, mid, smoothstep(0.0, 0.22, h));
     sky = mix(sky, zenith, smoothstep(0.18, 0.85, h));
 
-    float mie = pow(cos_sun, 8.0);
-    float mie2 = pow(cos_sun, 90.0);
+    float mie = pow(cos_sun, 3.0);
+    float mie2 = pow(cos_sun, 42.0);
     vec3 sun_tint = g.sun_color_exposure.rgb;
-    sky += sun_tint * mie * 0.30;
-    sky += sun_tint * mie2 * 0.9;
+    sky += sun_tint * mie * 0.55;
+    sky += sun_tint * mie2 * 1.1;
 
     float disk = smoothstep(0.99965, 0.99992, cos_sun);
     sky += sun_tint * disk * 18.0;
