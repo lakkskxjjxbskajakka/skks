@@ -1,3 +1,4 @@
+
 name: OpenCode Web (Secure)
 
 on:
@@ -6,7 +7,7 @@ on:
       duration:
         description: 'مدت زمان اجرا (دقیقه)'
         required: true
-        default: '355'
+        default: '60'
       opencode_port:
         description: 'پورت داخلی OpenCode Web'
         required: true
@@ -49,7 +50,7 @@ jobs:
 
       - name: تنظیم Git identity + مسیرهای امن
         run: |
-          git config user.name  "opencode-bot"
+          git config user.name "opencode-bot"
           git config user.email "opencode-bot@users.noreply.github.com"
 
           LOG_DIR="${RUNNER_TEMP:-/tmp}/opencode-logs"
@@ -72,26 +73,32 @@ jobs:
           npm install -g opencode-ai@latest || npm install -g opencode@latest
           opencode --version || true
 
-      - name: نصب Caddy (دانلود مستقیم از GitHub Releases)
+      - name: نصب Caddy
         run: |
           set -euo pipefail
+
           ARCH="amd64"
           URL="https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_linux_${ARCH}.tar.gz"
-          echo "⬇️ دانلود Caddy از: $URL"
+
+          echo "Downloading Caddy: $URL"
+
           curl -fsSL "$URL" -o /tmp/caddy.tar.gz
           tar -xzf /tmp/caddy.tar.gz -C /tmp caddy
+
           sudo install -m 0755 /tmp/caddy /usr/local/bin/caddy
+
           rm -f /tmp/caddy /tmp/caddy.tar.gz
+
           caddy version
 
-      # ─────────────────────────────────────────────
-      # راه‌اندازی opencode-unlimited-proxy (WARP)
-      # ─────────────────────────────────────────────
       - name: راه‌اندازی opencode-unlimited-proxy (WARP)
         run: |
           set -euo pipefail
+
           echo "📥 دریافت مخزن پروکسی..."
+
           git clone https://github.com/ebouther/opencode-unlimited-proxy.git /tmp/opencode-unlimited-proxy
+
           cd /tmp/opencode-unlimited-proxy/stack
 
           cat > .env <<EOF
@@ -104,77 +111,88 @@ jobs:
           EOF
 
           echo "🧹 پاکسازی محیط قبلی..."
+
           docker compose down -v --remove-orphans 2>/dev/null || true
           docker rm -f ofu-engine stack-config-init-1 2>/dev/null || true
 
           echo "🐳 اجرای Docker Compose..."
+
           docker compose up -d
 
-          echo "⏳ انتظار برای آماده شدن WARP و پروکسی (حداکثر ۵ دقیقه)..."
+          echo "⏳ انتظار برای آماده شدن WARP..."
+
           READY=0
+
           for i in $(seq 1 60); do
+
             if curl -sf --max-time 3 http://127.0.0.1:8080/healthz > /tmp/healthz.json 2>/dev/null; then
+
               WARP_STATUS=$(python3 -c "import json;print(json.load(open('/tmp/healthz.json')).get('warp',{}).get('status',''))" 2>/dev/null || echo "")
+
               ACTIVE=$(python3 -c "import json;print(json.load(open('/tmp/healthz.json')).get('warp',{}).get('active',0))" 2>/dev/null || echo "0")
-              echo "  [$i/60] warp.status=$WARP_STATUS active=$ACTIVE"
+
+              echo "[$i/60] warp.status=$WARP_STATUS active=$ACTIVE"
+
               if [ "$WARP_STATUS" = "ready" ]; then
-                echo "✅ پروکسی و WARP آماده هستند (فعال: $ACTIVE خروجی)"
+                echo "✅ WARP آماده است"
                 READY=1
                 break
               fi
+
             else
-              echo "  [$i/60] healthz هنوز پاسخ نمی‌دهد..."
+              echo "[$i/60] healthz هنوز پاسخ نمی‌دهد"
             fi
+
             if [ $((i % 10)) -eq 0 ]; then
-              echo "----- لاگ opencode-engine (پس از ${i} تلاش) -----"
+              echo "----- Docker logs -----"
               docker compose logs --tail=30 opencode-engine 2>&1 || true
             fi
+
             sleep 5
           done
 
-          echo "----- وضعیت نهایی healthz -----"
-          curl -s --max-time 5 http://127.0.0.1:8080/healthz | python3 -m json.tool || echo "(healthz پاسخ نداد)"
+          echo "----- وضعیت نهایی Health -----"
+
+          curl -s --max-time 5 http://127.0.0.1:8080/healthz | python3 -m json.tool || true
 
           if [ "$READY" != "1" ]; then
-            echo "❌ پروکسی/WARP در زمان تعیین‌شده آماده نشد."
-            echo "----- لاگ کامل opencode-engine -----"
-            docker compose logs --tail=200 opencode-engine 2>&1 || true
+
+            echo "❌ WARP آماده نشد"
+
+            docker compose ps -a || true
+            docker compose logs --tail=200 2>&1 || true
+
             exit 1
           fi
 
-      # ─────────────────────────────────────────────
-      # ساخت کانفیگ OpenCode با همه مدل‌های پشتیبانی‌شده
-      # ─────────────────────────────────────────────
       - name: ساخت کانفیگ OpenCode (همه مدل‌ها)
         run: |
           set -euo pipefail
+
           CONFIG_FILE="$XDG_CONFIG_HOME/opencode/opencode.json"
 
           PASS_HASH=$(caddy hash-password --plaintext "$OPENCODE_BASIC_PASS")
           echo "CADDY_PASS_HASH=$PASS_HASH" >> "$GITHUB_ENV"
 
-          echo "📋 دریافت لیست مدل‌ها از پروکسی..."
+          echo "📋 دریافت مدل‌ها..."
+
           curl -sf --max-time 15 \
             -H "Authorization: Bearer ${PROXY_SERVER_KEY}" \
             http://127.0.0.1:8080/v1/models > /tmp/models.json || {
-              echo "❌ دریافت لیست مدل‌ها شکست خورد"
-              cat /tmp/models.json || true
+              echo "❌ دریافت مدل‌ها شکست خورد"
               exit 1
             }
 
-          echo "----- نمونه‌ای از پاسخ /v1/models -----"
-          python3 -c "import json;d=json.load(open('/tmp/models.json'));print(json.dumps(d,indent=2)[:2000])" || true
-          echo "------------------------------------------"
-
           python3 - "$CONFIG_FILE" "$PROXY_SERVER_KEY" /tmp/models.json <<'PY'
-          import json, sys
+          import json
+          import sys
 
-          out_path, api_key, models_path = sys.argv[1], sys.argv[2], sys.argv[3]
+          out_path, api_key, models_path = sys.argv[1:4]
 
           try:
               raw = json.load(open(models_path))
           except Exception as e:
-              print(f"❌ خواندن پاسخ مدل‌ها شکست خورد: {e}")
+              print(f"Error: {e}")
               sys.exit(1)
 
           if isinstance(raw, list):
@@ -184,26 +202,34 @@ jobs:
           elif isinstance(raw, dict) and isinstance(raw.get("models"), list):
               items = raw["models"]
           else:
-              print(f"❌ فرمت ناشناخته پاسخ: {type(raw)}")
+              print("Unknown models response format")
               sys.exit(1)
 
           model_ids = []
-          for it in items:
-              if isinstance(it, dict):
-                  mid = it.get("id") or it.get("name") or it.get("model")
+
+          for item in items:
+              if isinstance(item, dict):
+                  mid = item.get("id") or item.get("name") or item.get("model")
               else:
-                  mid = str(it)
+                  mid = str(item)
+
               if mid:
                   model_ids.append(str(mid).strip())
 
           seen = set()
-          model_ids = [m for m in model_ids if not (m in seen or seen.add(m))]
+
+          model_ids = [
+              m for m in model_ids
+              if not (m in seen or seen.add(m))
+          ]
 
           if not model_ids:
-              print("⚠️ هیچ مدلی پیدا نشد؛ از مدل پیش‌فرض استفاده می‌شود.")
               model_ids = ["beam-free"]
 
-          models = {mid: {"name": mid} for mid in model_ids}
+          models = {
+              mid: {"name": mid}
+              for mid in model_ids
+          }
 
           config = {
               "$schema": "https://opencode.ai/config.json",
@@ -213,47 +239,61 @@ jobs:
                       "name": "OpenCode Unlimited Proxy (WARP)",
                       "options": {
                           "baseURL": "http://127.0.0.1:8080/v1",
-                          "apiKey": api_key,
+                          "apiKey": api_key
                       },
-                      "models": models,
+                      "models": models
                   }
               },
               "model": f"opencode-unlimited-proxy/{model_ids[0]}",
               "autoupdate": False,
-              "share": "disabled",
+              "share": "disabled"
           }
 
-          json.dump(config, open(out_path, "w"), ensure_ascii=False, indent=2)
-          print(f"✅ کانفیگ با {len(models)} مدل ساخته شد.")
-          print(f"   مدل پیش‌فرض: {config['model']}")
-          print(f"   چند نمونه: {model_ids[:5]}")
+          json.dump(
+              config,
+              open(out_path, "w"),
+              ensure_ascii=False,
+              indent=2
+          )
+
+          print(f"Models: {len(models)}")
+          print(f"Default: {config['model']}")
           PY
 
           chmod 600 "$CONFIG_FILE"
-          echo "----- تعداد مدل‌ها در کانفیگ -----"
-          python3 -c "import json;c=json.load(open('$CONFIG_FILE'));print(len(c['provider']['opencode-unlimited-proxy']['models']))"
-          echo "--------------------------------"
 
       - name: اجرای OpenCode Web
         run: |
           set -euo pipefail
-          nohup opencode web --port "$OPENCODE_PORT" --hostname 127.0.0.1 > "$LOG_DIR/opencode.log" 2>&1 &
+
+          nohup opencode web \
+            --port "$OPENCODE_PORT" \
+            --hostname 127.0.0.1 \
+            > "$LOG_DIR/opencode.log" 2>&1 &
+
           echo "OPENCODE_PID=$!" >> "$GITHUB_ENV"
 
           for i in $(seq 1 30); do
-            CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 "http://127.0.0.1:$OPENCODE_PORT" || echo "000")
+
+            CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+              --connect-timeout 2 \
+              "http://127.0.0.1:$OPENCODE_PORT" || true)
+
             if echo "$CODE" | grep -qE '200|30[0-9]|40[0-9]'; then
-              echo "✅ OpenCode Web آماده است (HTTP $CODE)"
+              echo "✅ OpenCode ready: HTTP $CODE"
               break
             fi
-            echo "⏳ انتظار... ($i/30) - کد: $CODE"
+
+            echo "Waiting ($i/30): $CODE"
             sleep 2
           done
+
           tail -n 40 "$LOG_DIR/opencode.log" || true
 
       - name: راه‌اندازی Caddy
         run: |
           set -euo pipefail
+
           CADDY_DIR="${RUNNER_TEMP:-/tmp}/caddy"
           mkdir -p "$CADDY_DIR"
 
@@ -286,128 +326,741 @@ jobs:
           CADDYEOF
 
           python3 - "$CADDY_DIR/Caddyfile" <<'PY'
-          import sys, os
+          import sys
+          import os
+
           p = sys.argv[1]
           s = open(p).read()
+
           s = s.replace("__PROXY_PORT__", os.environ["PROXY_PORT"])
           s = s.replace("__OPENCODE_PORT__", os.environ["OPENCODE_PORT"])
           s = s.replace("__BASIC_USER__", os.environ["OPENCODE_BASIC_USER"])
           s = s.replace("__BASIC_HASH__", os.environ["CADDY_PASS_HASH"])
+
           open(p, "w").write(s)
           PY
 
-          caddy validate --config "$CADDY_DIR/Caddyfile" --adapter caddyfile
+          caddy validate \
+            --config "$CADDY_DIR/Caddyfile" \
+            --adapter caddyfile
 
-          nohup caddy run --config "$CADDY_DIR/Caddyfile" --adapter caddyfile > "$LOG_DIR/caddy.log" 2>&1 &
+          nohup caddy run \
+            --config "$CADDY_DIR/Caddyfile" \
+            --adapter caddyfile \
+            > "$LOG_DIR/caddy.log" 2>&1 &
+
           echo "CADDY_PID=$!" >> "$GITHUB_ENV"
 
           sleep 5
+
           tail -n 30 "$LOG_DIR/caddy.log" || true
 
-          NOAUTH=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${PROXY_PORT}/" || echo "000")
-          echo "بدون رمز → HTTP $NOAUTH (باید 401 باشد)"
+          NOAUTH=$(curl -sS -o /dev/null -w "%{http_code}" \
+            "http://127.0.0.1:${PROXY_PORT}/" || true)
+
+          echo "Without authentication: HTTP $NOAUTH"
+
           if [ "$NOAUTH" != "401" ]; then
-            echo "❌ Basic Auth کار نمی‌کند"
+            echo "❌ Basic Auth failed"
             exit 1
           fi
 
-          AUTH=$(curl -s -o /dev/null -w "%{http_code}" -u "${OPENCODE_BASIC_USER}:${OPENCODE_BASIC_PASS}" "http://127.0.0.1:${PROXY_PORT}/" || echo "000")
-          echo "با رمز → HTTP $AUTH (نباید 401 باشد)"
+          AUTH=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -u "${OPENCODE_BASIC_USER}:${OPENCODE_BASIC_PASS}" \
+            "http://127.0.0.1:${PROXY_PORT}/" || true)
+
+          echo "With authentication: HTTP $AUTH"
+
           if [ "$AUTH" = "401" ]; then
-            echo "❌ رمز درست پذیرفته نمی‌شود"
+            echo "❌ Authentication rejected"
             exit 1
           fi
-          echo "✅ Basic Auth فعال است (${OPENCODE_BASIC_USER} / ${OPENCODE_BASIC_PASS})"
+
+          echo "✅ Basic Auth enabled"
 
       - name: راه‌اندازی تونل Cloudflare
         run: |
           set -euo pipefail
-          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+
+          curl -fL \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o cloudflared
+
           chmod +x cloudflared
 
-          nohup ./cloudflared tunnel --url "http://127.0.0.1:${PROXY_PORT}" --no-autoupdate > "$LOG_DIR/cloudflare.log" 2>&1 &
+          nohup ./cloudflared tunnel \
+            --url "http://127.0.0.1:${PROXY_PORT}" \
+            --no-autoupdate \
+            > "$LOG_DIR/cloudflare.log" 2>&1 &
+
           echo "CLOUDFLARED_PID=$!" >> "$GITHUB_ENV"
 
           sleep 8
-          TUNNEL_URL=$(grep -oP 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$LOG_DIR/cloudflare.log" | head -n1 || true)
+
+          TUNNEL_URL=$(grep -oP \
+            'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' \
+            "$LOG_DIR/cloudflare.log" | head -n1 || true)
+
           if [ -z "$TUNNEL_URL" ]; then
-            echo "❌ خطا در ساخت تونل"
+            echo "❌ Tunnel failed"
             cat "$LOG_DIR/cloudflare.log"
             exit 1
           fi
-          echo "✅ تونل: $TUNNEL_URL"
+
           echo "TUNNEL_URL=$TUNNEL_URL" >> "$GITHUB_ENV"
+
           echo "$TUNNEL_URL" > opencode-url.txt
+
+          echo "✅ Tunnel: $TUNNEL_URL"
 
       - name: نمایش خلاصه
         run: |
-          MODEL_COUNT=$(python3 -c "import json;c=json.load(open('$XDG_CONFIG_HOME/opencode/opencode.json'));print(len(c['provider']['opencode-unlimited-proxy']['models']))" 2>/dev/null || echo "?")
+          MODEL_COUNT=$(python3 -c \
+            "import json;c=json.load(open('$XDG_CONFIG_HOME/opencode/opencode.json'));print(len(c['provider']['opencode-unlimited-proxy']['models']))" \
+            2>/dev/null || echo "?")
+
           {
             echo "## OpenCode Web (Secure) 🔐"
             echo ""
-            echo "- **URL:** ${{ env.TUNNEL_URL }}"
-            echo "- **Username:** \`admin\`"
-            echo "- **Password:** \`admin\`"
-            echo "- **پروکسی:** opencode-unlimited-proxy (حالت استاندارد با WARP داخلی)"
+            echo "- **URL:** ${TUNNEL_URL}"
+            echo "- **Username:** \`${OPENCODE_BASIC_USER}\`"
+            echo "- **Proxy:** opencode-unlimited-proxy"
             echo "- **WARP Pool Size:** \`${WARP_POOL_SIZE}\`"
-            echo "- **تعداد مدل‌ها در کانفیگ:** \`${MODEL_COUNT}\`"
-            echo "- **مدت:** ${{ github.event.inputs.duration }} دقیقه"
+            echo "- **Models:** \`${MODEL_COUNT}\`"
+            echo "- **Duration:** ${{ github.event.inputs.duration }} minutes"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: نگهبانی سرویس‌ها
+      # ==================================================
+      # ADVANCED WATCHDOG
+      # ==================================================
+
+      - name: نگهبانی هوشمند + گزارش کامل تشخیصی
         run: |
           set -uo pipefail
+
           DURATION="${{ github.event.inputs.duration }}"
           END_TIME=$(date -d "$DURATION minutes" +%s)
-          TUNNEL_URL="${{ env.TUNNEL_URL }}"
+
+          TUNNEL_URL="${TUNNEL_URL}"
           CADDY_CFG="${RUNNER_TEMP:-/tmp}/caddy/Caddyfile"
+          STACK_DIR="/tmp/opencode-unlimited-proxy/stack"
+
+          DIAG_DIR="$LOG_DIR/diagnostics"
+          mkdir -p "$DIAG_DIR"
+
+          ITERATION=0
+
+          # ------------------------------------------
+          # Logging
+          # ------------------------------------------
+
+          log() {
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+          }
+
+          section() {
+            echo ""
+            echo "=================================================="
+            echo " $*"
+            echo "=================================================="
+          }
+
+          # ------------------------------------------
+          # Safe HTTP check
+          # ------------------------------------------
+
+          http_check() {
+            local URL="$1"
+            local OUTPUT="$2"
+
+            local CODE
+
+            CODE=$(curl -sS \
+              --connect-timeout 5 \
+              --max-time 15 \
+              -o "$OUTPUT" \
+              -w "%{http_code}" \
+              "$URL" 2>"${OUTPUT}.error") || true
+
+            CODE="${CODE:-000}"
+
+            echo "$CODE"
+          }
+
+          # ------------------------------------------
+          # Diagnostic report
+          # ------------------------------------------
+
+          diagnostic_report() {
+
+            local REASON="$1"
+            local REPORT="$DIAG_DIR/diagnostic-$(date +%Y%m%d-%H%M%S).log"
+
+            section "FULL DIAGNOSTIC REPORT"
+
+            log "Reason: $REASON"
+            log "Report: $REPORT"
+
+            {
+
+              echo "========================================"
+              echo "OpenCode Watchdog Diagnostic"
+              echo "========================================"
+
+              date -Is
+
+              echo ""
+              echo "Reason: $REASON"
+
+              # --------------------------------------
+              # System
+              # --------------------------------------
+
+              echo ""
+              echo "========== SYSTEM =========="
+
+              uname -a
+              uptime
+              free -h
+              df -h
+              df -i
+
+              # --------------------------------------
+              # Processes
+              # --------------------------------------
+
+              echo ""
+              echo "========== PROCESSES =========="
+
+              ps auxww
+
+              # --------------------------------------
+              # Ports
+              # --------------------------------------
+
+              echo ""
+              echo "========== LISTENING PORTS =========="
+
+              ss -lntp || true
+
+              # --------------------------------------
+              # Docker
+              # --------------------------------------
+
+              echo ""
+              echo "========== DOCKER STATUS =========="
+
+              docker ps -a --no-trunc || true
+
+              echo ""
+              echo "========== DOCKER COMPOSE PS =========="
+
+              (
+                cd "$STACK_DIR" &&
+                docker compose ps -a
+              ) 2>&1 || true
+
+              echo ""
+              echo "========== DOCKER EVENTS =========="
+
+              docker events --since 5m --until "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                --filter type=container 2>&1 | tail -n 100 || true
+
+              # --------------------------------------
+              # Container logs
+              # --------------------------------------
+
+              echo ""
+              echo "========== OPENCODE ENGINE LOGS =========="
+
+              (
+                cd "$STACK_DIR" &&
+                docker compose logs --timestamps --tail=150 opencode-engine
+              ) 2>&1 || true
+
+              echo ""
+              echo "========== CONFIG INIT LOGS =========="
+
+              (
+                cd "$STACK_DIR" &&
+                docker compose logs --timestamps --tail=100 2>&1
+              ) || true
+
+              # --------------------------------------
+              # Health check
+              # --------------------------------------
+
+              echo ""
+              echo "========== PROXY HEALTHZ =========="
+
+              curl -sS \
+                --connect-timeout 5 \
+                --max-time 10 \
+                -i http://127.0.0.1:8080/healthz 2>&1 || true
+
+              echo ""
+              echo "========== MODELS API =========="
+
+              curl -sS \
+                --connect-timeout 5 \
+                --max-time 10 \
+                -o /dev/null \
+                -w "HTTP: %{http_code}\n" \
+                http://127.0.0.1:8080/v1/models 2>&1 || true
+
+              # --------------------------------------
+              # OpenCode
+              # --------------------------------------
+
+              echo ""
+              echo "========== OPENCODE LOGS =========="
+
+              tail -n 150 "$LOG_DIR/opencode.log" 2>&1 || true
+
+              echo ""
+              echo "========== OPENCODE PROCESS =========="
+
+              pgrep -af opencode || true
+
+              # --------------------------------------
+              # Caddy
+              # --------------------------------------
+
+              echo ""
+              echo "========== CADDY LOGS =========="
+
+              tail -n 150 "$LOG_DIR/caddy.log" 2>&1 || true
+
+              echo ""
+              echo "========== CADDY PROCESS =========="
+
+              pgrep -af caddy || true
+
+              # --------------------------------------
+              # Cloudflare
+              # --------------------------------------
+
+              echo ""
+              echo "========== CLOUDFLARED LOGS =========="
+
+              tail -n 150 "$LOG_DIR/cloudflare.log" 2>&1 || true
+
+              echo ""
+              echo "========== CLOUDFLARED PROCESS =========="
+
+              pgrep -af cloudflared || true
+
+              # --------------------------------------
+              # Network
+              # --------------------------------------
+
+              echo ""
+              echo "========== NETWORK =========="
+
+              ip addr 2>&1 || true
+              ip route 2>&1 || true
+
+              echo ""
+              echo "========== DNS =========="
+
+              cat /etc/resolv.conf 2>&1 || true
+
+              echo ""
+              echo "========== CONNECTIVITY =========="
+
+              curl -sS -I --connect-timeout 5 \
+                https://github.com 2>&1 || true
+
+              echo ""
+              echo "========== END REPORT =========="
+
+            } > "$REPORT" 2>&1
+
+            cat "$REPORT"
+
+            log "Diagnostic report saved: $REPORT"
+          }
+
+          # ------------------------------------------
+          # Service status
+          # ------------------------------------------
+
+          check_services() {
+
+            local FAILED=0
+
+            section "SERVICE HEALTH CHECK"
+
+            # Proxy
+
+            PROXY_CODE=$(http_check \
+              "http://127.0.0.1:8080/healthz" \
+              "/tmp/watchdog-proxy-health.json")
+
+            log "Proxy health: HTTP $PROXY_CODE"
+
+            if [ "$PROXY_CODE" != "200" ]; then
+              log "❌ Proxy health check failed"
+              FAILED=1
+            fi
+
+            # OpenCode
+
+            OC_CODE=$(http_check \
+              "http://127.0.0.1:${OPENCODE_PORT}/" \
+              "/tmp/watchdog-opencode.html")
+
+            log "OpenCode: HTTP $OC_CODE"
+
+            if [ "$OC_CODE" = "000" ]; then
+              log "❌ OpenCode is unreachable"
+              FAILED=1
+            fi
+
+            # Caddy
+
+            CAD_CODE=$(http_check \
+              "http://127.0.0.1:${PROXY_PORT}/" \
+              "/tmp/watchdog-caddy.html")
+
+            log "Caddy: HTTP $CAD_CODE"
+
+            if [ "$CAD_CODE" != "401" ]; then
+              log "❌ Caddy authentication check failed"
+              FAILED=1
+            fi
+
+            # Cloudflare
+
+            TUNNEL_CODE=$(http_check \
+              "$TUNNEL_URL" \
+              "/tmp/watchdog-cloudflare.html")
+
+            log "Cloudflare: HTTP $TUNNEL_CODE"
+
+            if [ "$TUNNEL_CODE" = "000" ] ||
+               [ "$TUNNEL_CODE" = "502" ] ||
+               [ "$TUNNEL_CODE" = "530" ]; then
+
+              log "❌ Cloudflare tunnel unreachable"
+              FAILED=1
+            fi
+
+            return "$FAILED"
+          }
+
+          # ------------------------------------------
+          # Restart functions
+          # ------------------------------------------
+
+          restart_proxy() {
+
+            section "RESTART PROXY"
+
+            (
+              cd "$STACK_DIR" &&
+              docker compose restart
+            ) || true
+
+            log "Waiting for proxy..."
+
+            for i in $(seq 1 30); do
+
+              CODE=$(http_check \
+                "http://127.0.0.1:8080/healthz" \
+                "/tmp/watchdog-restart-proxy.json")
+
+              if [ "$CODE" = "200" ]; then
+                log "✅ Proxy recovered"
+                return 0
+              fi
+
+              log "Proxy recovery: $i/30 HTTP $CODE"
+
+              sleep 5
+            done
+
+            log "❌ Proxy recovery failed"
+
+            diagnostic_report "PROXY RESTART FAILED"
+
+            return 1
+          }
+
+          restart_opencode() {
+
+            section "RESTART OPENCODE"
+
+            pkill -f '[o]pencode web' || true
+
+            sleep 2
+
+            nohup opencode web \
+              --port "$OPENCODE_PORT" \
+              --hostname 127.0.0.1 \
+              > "$LOG_DIR/opencode.log" 2>&1 &
+
+            log "New OpenCode PID: $!"
+
+            sleep 5
+
+            CODE=$(http_check \
+              "http://127.0.0.1:${OPENCODE_PORT}/" \
+              "/tmp/watchdog-opencode-restart.html")
+
+            log "OpenCode after restart: HTTP $CODE"
+
+            if [ "$CODE" = "000" ]; then
+              diagnostic_report "OPENCODE RESTART FAILED"
+              return 1
+            fi
+
+            return 0
+          }
+
+          restart_caddy() {
+
+            section "RESTART CADDY"
+
+            pkill -x caddy || true
+
+            sleep 2
+
+            caddy validate \
+              --config "$CADDY_CFG" \
+              --adapter caddyfile || {
+                log "❌ Caddy configuration invalid"
+                return 1
+              }
+
+            nohup caddy run \
+              --config "$CADDY_CFG" \
+              --adapter caddyfile \
+              > "$LOG_DIR/caddy.log" 2>&1 &
+
+            log "New Caddy PID: $!"
+
+            sleep 5
+
+            CODE=$(http_check \
+              "http://127.0.0.1:${PROXY_PORT}/" \
+              "/tmp/watchdog-caddy-restart.html")
+
+            log "Caddy after restart: HTTP $CODE"
+
+            if [ "$CODE" != "401" ]; then
+              diagnostic_report "CADDY RESTART FAILED"
+              return 1
+            fi
+
+            return 0
+          }
+
+          restart_tunnel() {
+
+            section "RESTART CLOUDFLARE TUNNEL"
+
+            pkill -x cloudflared || true
+
+            sleep 2
+
+            nohup ./cloudflared tunnel \
+              --url "http://127.0.0.1:${PROXY_PORT}" \
+              --no-autoupdate \
+              > "$LOG_DIR/cloudflare.log" 2>&1 &
+
+            log "New Cloudflare PID: $!"
+
+            sleep 10
+
+            NEW_URL=$(grep -oP \
+              'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' \
+              "$LOG_DIR/cloudflare.log" | head -n1 || true)
+
+            if [ -n "$NEW_URL" ]; then
+
+              TUNNEL_URL="$NEW_URL"
+
+              echo "$NEW_URL" > opencode-url.txt
+
+              echo "TUNNEL_URL=$NEW_URL" >> "$GITHUB_ENV"
+
+              log "✅ New tunnel: $NEW_URL"
+
+              return 0
+            fi
+
+            log "❌ Failed to create new tunnel"
+
+            diagnostic_report "CLOUDFLARE RESTART FAILED"
+
+            return 1
+          }
+
+          # ------------------------------------------
+          # Initial report
+          # ------------------------------------------
+
+          section "WATCHDOG STARTED"
+
+          log "Duration: $DURATION minutes"
+          log "OpenCode port: $OPENCODE_PORT"
+          log "Proxy port: $PROXY_PORT"
+          log "Tunnel: $TUNNEL_URL"
+
+          diagnostic_report "INITIAL SYSTEM SNAPSHOT"
+
+          # ------------------------------------------
+          # Main loop
+          # ------------------------------------------
 
           while [ "$(date +%s)" -lt "$END_TIME" ]; do
+
+            ITERATION=$((ITERATION + 1))
+
             REMAINING=$((END_TIME - $(date +%s)))
-            echo "[$(date +%H:%M:%S)] باقی‌مانده: $((REMAINING/60))m $((REMAINING%60))s"
 
-            PROXY_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://127.0.0.1:8080/healthz" || echo "000")
-            if [ "$PROXY_HEALTH" != "200" ]; then
-              echo "⚠️ پروکسی پاسخ نمی‌دهد - ری‌استارت Docker Compose..."
-              (cd /tmp/opencode-unlimited-proxy/stack && docker compose restart) || true
-              sleep 10
+            section "WATCHDOG CYCLE #$ITERATION"
+
+            log "Remaining: $((REMAINING / 60))m $((REMAINING % 60))s"
+
+            # Docker status
+
+            log "Docker container status:"
+
+            docker ps -a \
+              --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' || true
+
+            # WARP status
+
+            if [ -f /tmp/watchdog-proxy-health.json ]; then
+
+              log "WARP health response:"
+
+              python3 -m json.tool \
+                /tmp/watchdog-proxy-health.json 2>/dev/null || \
+                cat /tmp/watchdog-proxy-health.json
+
             fi
 
-            OC=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://127.0.0.1:${OPENCODE_PORT}" || echo "000")
-            if [ "$OC" = "000" ]; then
-              echo "⚠️ OpenCode پاسخ نمی‌دهد - ری‌استارت..."
-              pkill -f "opencode web" || true
-              sleep 2
-              nohup opencode web --port "$OPENCODE_PORT" --hostname 127.0.0.1 > "$LOG_DIR/opencode.log" 2>&1 &
-              sleep 5
+            # Run checks
+
+            FAILED=0
+
+            if ! check_services; then
+              FAILED=1
             fi
 
-            CAD=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${PROXY_PORT}/" || echo "000")
-            if [ "$CAD" != "401" ]; then
-              echo "⚠️ Caddy مشکل دارد (HTTP $CAD) - ری‌استارت..."
-              pkill -f caddy || true
-              sleep 2
-              nohup caddy run --config "$CADDY_CFG" --adapter caddyfile > "$LOG_DIR/caddy.log" 2>&1 &
-              sleep 5
-            fi
+            # --------------------------------------
+            # Detailed diagnostics on failure
+            # --------------------------------------
 
-            T=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "$TUNNEL_URL" || echo "000")
-            if [ "$T" = "000" ] || [ "$T" = "502" ] || [ "$T" = "530" ]; then
-              echo "⚠️ تونل مشکل دارد (HTTP $T) - بازسازی..."
-              pkill -f cloudflared || true
-              sleep 2
-              nohup ./cloudflared tunnel --url "http://127.0.0.1:${PROXY_PORT}" --no-autoupdate > "$LOG_DIR/cloudflare.log" 2>&1 &
-              sleep 8
-              NEW=$(grep -oP 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$LOG_DIR/cloudflare.log" | head -n1 || true)
-              if [ -n "$NEW" ]; then
-                TUNNEL_URL="$NEW"
-                echo "$NEW" > opencode-url.txt
-                echo "🔄 آدرس جدید: $NEW"
+            if [ "$FAILED" = "1" ]; then
+
+              log "⚠️ One or more services failed"
+
+              diagnostic_report "SERVICE HEALTH CHECK FAILURE"
+
+              # Proxy recovery
+
+              PROXY_CODE=$(http_check \
+                "http://127.0.0.1:8080/healthz" \
+                "/tmp/watchdog-proxy-recheck.json")
+
+              if [ "$PROXY_CODE" != "200" ]; then
+                restart_proxy || true
               fi
+
+              sleep 5
+
+              # OpenCode recovery
+
+              OC_CODE=$(http_check \
+                "http://127.0.0.1:${OPENCODE_PORT}/" \
+                "/tmp/watchdog-opencode-recheck.html")
+
+              if [ "$OC_CODE" = "000" ]; then
+                restart_opencode || true
+              fi
+
+              sleep 3
+
+              # Caddy recovery
+
+              CAD_CODE=$(http_check \
+                "http://127.0.0.1:${PROXY_PORT}/" \
+                "/tmp/watchdog-caddy-recheck.html")
+
+              if [ "$CAD_CODE" != "401" ]; then
+                restart_caddy || true
+              fi
+
+              sleep 3
+
+              # Tunnel recovery
+
+              TUNNEL_CODE=$(http_check \
+                "$TUNNEL_URL" \
+                "/tmp/watchdog-tunnel-recheck.html")
+
+              if [ "$TUNNEL_CODE" = "000" ] ||
+                 [ "$TUNNEL_CODE" = "502" ] ||
+                 [ "$TUNNEL_CODE" = "530" ]; then
+
+                restart_tunnel || true
+
+              fi
+
+              # Final diagnostics
+
+              diagnostic_report "POST RECOVERY STATUS"
+
+            else
+
+              log "✅ All services are responding normally"
+
+            fi
+
+            # --------------------------------------
+            # Periodic log snapshots
+            # --------------------------------------
+
+            if [ $((ITERATION % 10)) -eq 0 ]; then
+
+              section "PERIODIC LOG SNAPSHOT"
+
+              log "OpenCode:"
+              tail -n 20 "$LOG_DIR/opencode.log" || true
+
+              log "Caddy:"
+              tail -n 20 "$LOG_DIR/caddy.log" || true
+
+              log "Cloudflare:"
+              tail -n 20 "$LOG_DIR/cloudflare.log" || true
+
+              log "Docker:"
+              (
+                cd "$STACK_DIR" &&
+                docker compose logs --tail=30
+              ) 2>&1 || true
+
             fi
 
             sleep 30
+
           done
+
+          # ------------------------------------------
+          # Final report
+          # ------------------------------------------
+
+          section "WATCHDOG FINISHED"
+
+          log "Execution duration completed"
+
+          diagnostic_report "FINAL SYSTEM SNAPSHOT"
+
+          log "All watchdog diagnostics saved in: $DIAG_DIR"
 
       - name: آپلود آرتیفکت
         if: always()
@@ -416,24 +1069,27 @@ jobs:
           name: opencode-secure-info
           path: |
             ${{ env.LOG_DIR }}/*.log
+            ${{ env.LOG_DIR }}/diagnostics/*.log
             opencode-url.txt
             /tmp/models.json
           if-no-files-found: ignore
+          retention-days: 7
 
       - name: Commit و push اجباری
         if: always()
         run: |
           set -uo pipefail
+
           git add -A
 
           if git diff --cached -U0 | grep -aiE '(api[_-]?key|secret|token|password|Bearer)[=:" ]+[A-Za-z0-9_\-]{16,}'; then
-            echo "❌ الگوی مشکوک به Secret در تغییرات پیدا شد — commit لغو شد"
+            echo "❌ الگوی مشکوک به Secret پیدا شد"
             git reset
             exit 1
           fi
 
           if git diff --cached --name-only | grep -aiE '(^|/)(\.env|opencode\.json|.*\.log)$|\.opencode/'; then
-            echo "❌ فایل حساس در staging — commit لغو شد"
+            echo "❌ فایل حساس در staging"
             git reset
             exit 1
           fi
@@ -446,13 +1102,19 @@ jobs:
           git commit -m "chore(opencode): auto-commit at $(date -u +%Y-%m-%dT%H:%M:%SZ) [skip ci]"
 
           for attempt in 1 2 3; do
-            if git push origin "HEAD:${{ github.ref_name }}"; then
-              echo "✅ push موفق (تلاش $attempt)"
+
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              echo "✅ Push موفق"
               exit 0
             fi
-            echo "⚠️ push ناموفق، تلاش $attempt — rebase و مجدد..."
-            git pull --rebase --autostash origin "${{ github.ref_name }}" || true
+
+            echo "⚠️ Push ناموفق، تلاش $attempt"
+
+            git pull --rebase --autostash origin "$GITHUB_REF_NAME" || true
+
             sleep 3
+
           done
-          echo "❌ push در ۳ تلاش ناموفق بود"
+
+          echo "❌ Push در ۳ تلاش ناموفق بود"
           exit 1
