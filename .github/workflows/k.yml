@@ -30,13 +30,25 @@ jobs:
       DURATION: ${{ inputs.duration }}
 
     steps:
-      - name: Checkout
+      # -----------------------------------------------
+      # 1. Checkout
+      # -----------------------------------------------
+
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 22
+      # -----------------------------------------------
+      # 2. Node.js
+      # -----------------------------------------------
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+
+      # -----------------------------------------------
+      # 3. Install OpenCode V2
+      # -----------------------------------------------
 
       - name: Install OpenCode V2
         shell: bash
@@ -47,9 +59,14 @@ jobs:
 
           hash -r
 
+          echo "OpenCode version:"
           opencode --version
 
-      - name: Clone and Install OpenCode Unlimited
+      # -----------------------------------------------
+      # 4. Clone and install Unlimited
+      # -----------------------------------------------
+
+      - name: Install OpenCode Unlimited
         shell: bash
         run: |
           set -euo pipefail
@@ -66,20 +83,22 @@ jobs:
 
           bash install.sh
 
-          # Load the installed PATH configuration
           touch "$HOME/.bashrc"
           source "$HOME/.bashrc"
 
-          # Explicit PATH for GitHub Actions
+          export PATH="$HOME/OpenCode-Unlimited/bin:$PATH"
+
           echo "$HOME/OpenCode-Unlimited/bin" >> "$GITHUB_PATH"
 
-          export PATH="$HOME/OpenCode-Unlimited/bin:$PATH"
+          echo "UNLIMITED_HOME=$HOME/OpenCode-Unlimited" >> "$GITHUB_ENV"
 
           hash -r
 
           opencode-unlimited --help || true
 
-          echo "UNLIMITED_HOME=$HOME/OpenCode-Unlimited" >> "$GITHUB_ENV"
+      # -----------------------------------------------
+      # 5. Initial plugin
+      # -----------------------------------------------
 
       - name: First Plugin Initialization
         shell: bash
@@ -88,31 +107,35 @@ jobs:
 
           export PATH="$UNLIMITED_HOME/bin:$PATH"
 
-          cd "$HOME"
-
-          echo "Initializing OpenCode Unlimited plugin..."
-
           opencode-unlimited plugin
 
-      - name: OpenCode Initial Serve and Shutdown
+      # -----------------------------------------------
+      # 6. Initial OpenCode serve
+      #    Equivalent to starting and pressing Ctrl+C
+      # -----------------------------------------------
+
+      - name: Initial OpenCode Serve
         shell: bash
         run: |
           set -euo pipefail
 
-          mkdir -p "$RUNNER_TEMP/opencode-logs"
+          LOG_DIR="$RUNNER_TEMP/opencode-logs"
 
-          echo "Starting initial OpenCode serve..."
+          mkdir -p "$LOG_DIR"
+
+          echo "Starting initial OpenCode server..."
 
           opencode serve \
             --port "$OPENCODE_PORT" \
             --hostname 127.0.0.1 \
-            > "$RUNNER_TEMP/opencode-logs/initial.log" 2>&1 &
+            > "$LOG_DIR/initial.log" 2>&1 &
 
           INITIAL_PID=$!
 
           READY=0
 
           for i in $(seq 1 45); do
+
             CODE=$(curl -s \
               -o /dev/null \
               -w "%{http_code}" \
@@ -120,7 +143,7 @@ jobs:
               "http://127.0.0.1:${OPENCODE_PORT}/" || true)
 
             if [[ "$CODE" =~ ^(200|30[0-9]|401|403|404|426)$ ]]; then
-              echo "OpenCode initial serve ready: HTTP $CODE"
+              echo "OpenCode ready: HTTP $CODE"
               READY=1
               break
             fi
@@ -129,18 +152,21 @@ jobs:
           done
 
           # Equivalent to Ctrl+C
-          if kill -0 "$INITIAL_PID" 2>/dev/null; then
-            kill -INT "$INITIAL_PID" || true
-            wait "$INITIAL_PID" || true
-          fi
+          kill -INT "$INITIAL_PID" 2>/dev/null || true
+
+          wait "$INITIAL_PID" || true
 
           if [ "$READY" -ne 1 ]; then
-            echo "Initial OpenCode startup failed."
-            cat "$RUNNER_TEMP/opencode-logs/initial.log"
+            echo "Initial server failed."
+            cat "$LOG_DIR/initial.log"
             exit 1
           fi
 
-          echo "Initial OpenCode process stopped successfully."
+          echo "Initial server stopped."
+
+      # -----------------------------------------------
+      # 7. Second plugin initialization
+      # -----------------------------------------------
 
       - name: Second Plugin Initialization
         shell: bash
@@ -151,6 +177,10 @@ jobs:
 
           opencode-unlimited plugin
 
+      # -----------------------------------------------
+      # 8. Start OpenCode Unlimited serve
+      # -----------------------------------------------
+
       - name: Start OpenCode Unlimited Serve
         shell: bash
         run: |
@@ -159,8 +189,8 @@ jobs:
           export PATH="$UNLIMITED_HOME/bin:$PATH"
 
           LOG_DIR="$RUNNER_TEMP/opencode-logs"
+
           mkdir -p "$LOG_DIR"
-          chmod 700 "$LOG_DIR"
 
           echo "Starting OpenCode Unlimited serve..."
 
@@ -176,6 +206,7 @@ jobs:
           READY=0
 
           for i in $(seq 1 45); do
+
             CODE=$(curl -s \
               -o /dev/null \
               -w "%{http_code}" \
@@ -183,7 +214,7 @@ jobs:
               "http://127.0.0.1:${OPENCODE_PORT}/" || true)
 
             if [[ "$CODE" =~ ^(200|30[0-9]|401|403|404|426)$ ]]; then
-              echo "OpenCode is ready: HTTP $CODE"
+              echo "OpenCode ready: HTTP $CODE"
               READY=1
               break
             fi
@@ -198,6 +229,10 @@ jobs:
 
           echo "OPENCODE_PID=$SERVER_PID" >> "$GITHUB_ENV"
 
+      # -----------------------------------------------
+      # 9. Cloudflare Tunnel
+      # -----------------------------------------------
+
       - name: Start Cloudflare Tunnel
         shell: bash
         run: |
@@ -205,13 +240,13 @@ jobs:
 
           cd "$RUNNER_TEMP"
 
+          LOG_DIR="$RUNNER_TEMP/opencode-logs"
+
           curl -fsSL \
             https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
             -o cloudflared
 
           chmod +x cloudflared
-
-          LOG_DIR="$RUNNER_TEMP/opencode-logs"
 
           nohup "$RUNNER_TEMP/cloudflared" tunnel \
             --url "http://127.0.0.1:${OPENCODE_PORT}" \
@@ -225,6 +260,7 @@ jobs:
           TUNNEL_URL=""
 
           for i in $(seq 1 40); do
+
             TUNNEL_URL=$(grep -oE \
               'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' \
               "$LOG_DIR/cloudflare.log" | head -n 1 || true)
@@ -237,15 +273,20 @@ jobs:
           done
 
           if [ -z "$TUNNEL_URL" ]; then
+            echo "Cloudflare tunnel creation failed."
             cat "$LOG_DIR/cloudflare.log"
             exit 1
           fi
 
           echo "TUNNEL_URL=$TUNNEL_URL" >> "$GITHUB_ENV"
 
-          echo "Cloudflare tunnel ready: $TUNNEL_URL"
-
           echo "$TUNNEL_URL" > "$RUNNER_TEMP/opencode-url.txt"
+
+          echo "Cloudflare URL: $TUNNEL_URL"
+
+      # -----------------------------------------------
+      # 10. Pair
+      # -----------------------------------------------
 
       - name: OpenCode Unlimited Pair
         shell: bash
@@ -256,16 +297,20 @@ jobs:
 
           echo "Creating OpenCode pairing link..."
 
-          opencode-unlimited run \
-            --server "http://127.0.0.1:${OPENCODE_PORT}" \
-            pair \
+          # Correct syntax:
+          # No --server argument.
+          opencode-unlimited run pair \
             --url "$TUNNEL_URL"
+
+      # -----------------------------------------------
+      # 11. Summary
+      # -----------------------------------------------
 
       - name: Session Summary
         shell: bash
         run: |
           {
-            echo "## OpenCode Unlimited V2"
+            echo "# OpenCode Unlimited Web V2"
             echo ""
             echo "- **OpenCode:** V2"
             echo "- **Tunnel:** $TUNNEL_URL"
@@ -273,22 +318,27 @@ jobs:
             echo "- **Duration:** $DURATION minutes"
             echo "- **Status:** Active"
             echo ""
-            echo "### Startup sequence"
-            echo "1. npm install -g @opencode/cli"
+            echo "## Startup sequence"
+            echo "1. Install @opencode/cli"
             echo "2. Clone OpenCode-Unlimited"
-            echo "3. bash install.sh"
-            echo "4. Initial plugin initialization"
-            echo "5. Initial serve and shutdown"
-            echo "6. Second plugin initialization"
-            echo "7. opencode-unlimited run serve"
-            echo "8. Cloudflare Tunnel"
-            echo "9. opencode-unlimited run pair"
+            echo "3. Run install.sh"
+            echo "4. First plugin initialization"
+            echo "5. Initial OpenCode serve"
+            echo "6. Stop initial server"
+            echo "7. Second plugin initialization"
+            echo "8. OpenCode Unlimited serve"
+            echo "9. Cloudflare Tunnel"
+            echo "10. OpenCode Unlimited Pair"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # -----------------------------------------------
+      # 12. Watchdog
+      # -----------------------------------------------
 
       - name: Service Watchdog
         shell: bash
         run: |
-          set -uo pipefail
+          set -euo pipefail
 
           END_TIME=$(( $(date +%s) + DURATION * 60 ))
 
@@ -327,10 +377,12 @@ jobs:
 
             # Cloudflare process health
             if [ -f "$RUNNER_TEMP/cloudflared.pid" ]; then
+
               CF_PID=$(cat "$RUNNER_TEMP/cloudflared.pid")
 
               if ! kill -0 "$CF_PID" 2>/dev/null; then
-                echo "Cloudflare process stopped."
+
+                echo "Cloudflare stopped. Restarting..."
 
                 nohup "$RUNNER_TEMP/cloudflared" tunnel \
                   --url "http://127.0.0.1:${OPENCODE_PORT}" \
@@ -346,15 +398,16 @@ jobs:
                   "$LOG_DIR/cloudflare.log" | head -n 1 || true)
 
                 if [ -n "$NEW_URL" ]; then
-                  echo "New tunnel: $NEW_URL"
+
+                  echo "New Cloudflare URL: $NEW_URL"
 
                   echo "$NEW_URL" > "$RUNNER_TEMP/opencode-url.txt"
 
-                  # Generate a new one-time pairing link
-                  opencode-unlimited run \
-                    --server "http://127.0.0.1:${OPENCODE_PORT}" \
-                    pair \
+                  TUNNEL_URL="$NEW_URL"
+
+                  opencode-unlimited run pair \
                     --url "$NEW_URL" || true
+
                 fi
               fi
             fi
@@ -365,22 +418,38 @@ jobs:
 
           echo "Session duration completed."
 
-      - name: Cleanup
+      # -----------------------------------------------
+      # 13. Cleanup
+      # -----------------------------------------------
+
+      - name: Cleanup Services
         if: always()
         shell: bash
         run: |
           set +e
 
-          echo "Stopping services..."
+          echo "Cleaning up..."
 
           if [ -f "$RUNNER_TEMP/cloudflared.pid" ]; then
-            kill "$(cat "$RUNNER_TEMP/cloudflared.pid")" 2>/dev/null
+            kill "$(cat "$RUNNER_TEMP/cloudflared.pid")" 2>/dev/null || true
           fi
 
           if [ -f "$RUNNER_TEMP/opencode.pid" ]; then
-            kill "$(cat "$RUNNER_TEMP/opencode.pid")" 2>/dev/null
+            kill "$(cat "$RUNNER_TEMP/opencode.pid")" 2>/dev/null || true
           fi
 
-          pkill -f "opencode-unlimited.*run serve" 2>/dev/null || true
-
           echo "Cleanup completed."
+
+      # -----------------------------------------------
+      # 14. Upload logs and URL
+      # -----------------------------------------------
+
+      - name: Upload Session Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-unlimited-info
+          path: |
+            ${{ runner.temp }}/opencode-logs/*.log
+            ${{ runner.temp }}/opencode-url.txt
+          if-no-files-found: ignore
