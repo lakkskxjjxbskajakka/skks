@@ -15,6 +15,10 @@ option(HR_BUILD_TESTS "Build unit tests" ON)
 option(HR_BUILD_BENCHMARKS "Build benchmarks" ON)
 option(HR_ENABLE_ASAN "Enable AddressSanitizer (debug only)" OFF)
 
+if(UNIX)
+  add_compile_definitions(_POSIX_C_SOURCE=200809L)
+endif()
+
 find_package(Threads REQUIRED)
 find_package(Vulkan REQUIRED)
 
@@ -23,7 +27,8 @@ if(HR_ENABLE_ASAN)
   add_link_options(-fsanitize=address,undefined)
 endif()
 
-set(HR_WARNINGS -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter)
+set(HR_WARNINGS -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter
+  -Wno-missing-braces)
 if(MSVC)
   set(HR_WARNINGS /W4 /permissive-)
 else()
@@ -40,7 +45,7 @@ set(HR_SPV_FILES)
 foreach(s ${HR_SHADERS})
   get_filename_component(name ${s} NAME_WE)
   get_filename_component(ext ${s} EXT)
-  set(out ${HR_SPV_DIR}/${name}_${ext}.spv)
+  set(out ${HR_SPV_DIR}/${name}${ext}.spv)
   add_custom_command(
     OUTPUT ${out}
     COMMAND glslangValidator -V --target-env vulkan1.1 -o ${out} ${CMAKE_CURRENT_SOURCE_DIR}/shaders/${s}
@@ -68,7 +73,10 @@ set(HR_ENGINE_SOURCES
   engine/src/core/jobs.c
   engine/src/platform/platform_linux.c
   engine/src/platform/platform_win32.c
-  engine/src/renderer/vk_renderer.c
+  engine/src/renderer/vk_common.c
+  engine/src/renderer/vk_device.c
+  engine/src/renderer/vk_targets.c
+  engine/src/renderer/vk_frame.c
   engine/src/renderer/mesh.c
   engine/src/renderer/textures.c
   ${HR_SHADER_EMBED})
@@ -93,7 +101,7 @@ else()
 endif()
 
 if(HR_BUILD_GAME)
-  add_executable(horizon_demo game/src/demo.c game/src/world.c)
+  add_executable(horizon_demo game/src/demo.c game/src/world.c game/src/world_mesh.c game/src/car.c)
   target_include_directories(horizon_demo PRIVATE engine/include)
   target_compile_options(horizon_demo PRIVATE ${HR_WARNINGS})
   target_link_libraries(horizon_demo PRIVATE horizon)

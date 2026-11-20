@@ -1,0 +1,104 @@
+[
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/core/core.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/core/core.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/core/core.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/engine/src/core/core.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/core/math.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/core/math.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/core/math.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/engine/src/core/math.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/core/memory.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/core/memory.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/core/memory.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/engine/src/core/memory.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/core/jobs.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/core/jobs.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/core/jobs.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/engine/src/core/jobs.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/platform/platform_linux.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/platform/platform_linux.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/platform/platform_win32.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/platform/platform_win32.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_common.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_common.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_device.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_device.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_targets.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_targets.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_frame.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_frame.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/renderer/mesh.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/renderer/mesh.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/renderer/mesh.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/engine/src/renderer/mesh.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/renderer/textures.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/renderer/textures.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/renderer/textures.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/engine/src/renderer/textures.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/generated/shaders_embedded.c.o -c /home/runner/work/skks/skks/Horizon/build/generated/shaders_embedded.c",
+  "file": "/home/runner/work/skks/skks/Horizon/build/generated/shaders_embedded.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon.dir/generated/shaders_embedded.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon_demo.dir/game/src/demo.c.o -c /home/runner/work/skks/skks/Horizon/game/src/demo.c",
+  "file": "/home/runner/work/skks/skks/Horizon/game/src/demo.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon_demo.dir/game/src/demo.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon_demo.dir/game/src/world.c.o -c /home/runner/work/skks/skks/Horizon/game/src/world.c",
+  "file": "/home/runner/work/skks/skks/Horizon/game/src/world.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon_demo.dir/game/src/world.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon_demo.dir/game/src/world_mesh.c.o -c /home/runner/work/skks/skks/Horizon/game/src/world_mesh.c",
+  "file": "/home/runner/work/skks/skks/Horizon/game/src/world_mesh.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon_demo.dir/game/src/world_mesh.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon_demo.dir/game/src/car.c.o -c /home/runner/work/skks/skks/Horizon/game/src/car.c",
+  "file": "/home/runner/work/skks/skks/Horizon/game/src/car.c",
+  "output": "/home/runner/work/skks/skks/Horizon/build/CMakeFiles/horizon_demo.dir/game/src/car.c.o"
+}
+]

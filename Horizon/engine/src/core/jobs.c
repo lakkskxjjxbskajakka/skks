@@ -1,4 +1,5 @@
 #include "horizon/jobs.h"
+#include "horizon/memory.h"
 
 #include <pthread.h>
 #include <unistd.h>
@@ -81,6 +82,7 @@ static void* worker_main(void* user) {
     HrJobSystem* js = (HrJobSystem*)user;
     for (;;) {
         HrTask t;
+        memset(&t, 0, sizeof(t));
         bool have = false;
         pthread_mutex_lock(&js->lock);
         while (!have && !atomic_load_explicit(&js->stop, memory_order_relaxed)) {

@@ -71,7 +71,10 @@ HR_INLINE Mat4 mat4_identity(void) {
 
 HR_INLINE Mat4 mat4_cols(Vec4 a, Vec4 b, Vec4 c, Vec4 d) {
     Mat4 r;
-    r.c[0] = a; r.c[1] = b; r.c[2] = c; r.c[3] = d;
+    memcpy(&r.c[0], &a, sizeof(Vec4));
+    memcpy(&r.c[1], &b, sizeof(Vec4));
+    memcpy(&r.c[2], &c, sizeof(Vec4));
+    memcpy(&r.c[3], &d, sizeof(Vec4));
     return r;
 }
 
