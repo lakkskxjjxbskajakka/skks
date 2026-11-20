@@ -2,7 +2,6 @@ CMakeFiles/horizon.dir/engine/src/core/scene.c.o: \
  /home/runner/work/skks/skks/Horizon/engine/src/core/scene.c \
  /usr/include/stdc-predef.h \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/scene.h \
- /home/runner/work/skks/skks/Horizon/engine/include/horizon/ecs.h \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/core.h \
  /usr/lib/gcc/x86_64-linux-gnu/15/include/stdint.h /usr/include/stdint.h \
  /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
@@ -43,7 +42,6 @@ CMakeFiles/horizon.dir/engine/src/core/scene.c.o: \
  /usr/include/x86_64-linux-gnu/bits/types/locale_t.h \
  /usr/include/x86_64-linux-gnu/bits/types/__locale_t.h \
  /usr/include/x86_64-linux-gnu/bits/string_fortified.h \
- /home/runner/work/skks/skks/Horizon/engine/include/horizon/memory.h \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/math.h \
  /usr/include/math.h /usr/include/x86_64-linux-gnu/bits/math-vector.h \
  /usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h \
@@ -53,4 +51,5 @@ CMakeFiles/horizon.dir/engine/src/core/scene.c.o: \
  /usr/include/x86_64-linux-gnu/bits/mathcalls-macros.h \
  /usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h \
  /usr/include/x86_64-linux-gnu/bits/mathcalls.h \
- /home/runner/work/skks/skks/Horizon/engine/include/horizon/mesh.h
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/memory.h \
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/ecs.h

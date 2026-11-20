@@ -1,9 +1,12 @@
 #ifndef HORIZON_SCENE_H
 #define HORIZON_SCENE_H
 
-#include "horizon/ecs.h"
+#include "horizon/core.h"
 #include "horizon/math.h"
-#include "horizon/mesh.h"
+#include "horizon/memory.h"
+#include "horizon/ecs.h"
+
+#define HR_SCENE_MAX_NODES 4096
 
 typedef struct HrSceneNode HrSceneNode;
 
@@ -11,9 +14,8 @@ struct HrSceneNode {
     HrEntity entity;
     char name[64];
     HrSceneNode* parent;
-    hr_dynarray(HrSceneNode*) children;
-    hr_dynarray(HrSceneNode*) siblings;
-    
+    HrSceneNode* children[8];
+    u32 child_count;
     Mat4 transform;
     Mat4 local_transform;
     bool dirty;
@@ -22,8 +24,8 @@ struct HrSceneNode {
 typedef struct HrScene {
     HrWorld* world;
     HrSceneNode* root;
-    hr_dynarray(HrSceneNode*) nodes;
-    bool loaded;
+    u32 node_count;
+    HrSceneNode nodes[HR_SCENE_MAX_NODES];
 } HrScene;
 
 HrScene* hr_scene_create(HrWorld* world);
@@ -43,5 +45,7 @@ void hr_scene_update_all_transforms(HrScene* scene);
 
 void hr_scene_for_each_node(HrScene* scene, HrEntityFn fn, void* userdata);
 void hr_scene_for_each_entity_recursive(HrScene* scene, HrEntity entity, HrEntityFn fn, void* userdata);
+
+void hr_scene_set_local_transform(HrScene* scene, HrEntity entity, Mat4 local_transform);
 
 #endif /* HORIZON_SCENE_H */
