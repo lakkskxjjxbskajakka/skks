@@ -46,3 +46,14 @@ opencode-url.txt
 opencode.json
 .env
 .env.*
+
+# === OpenCode runner artifacts (auto) ===
+*.log
+opencode-url.txt
+opencode-credentials.txt
+cloudflared
+proxy-out/
+.opencode/
+opencode.json
+.env
+.env.*
