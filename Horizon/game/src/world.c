@@ -15,11 +15,11 @@ bool hr_world_create(HrWorld** out, HrRenderer* r, HrJobSystem* js) {
     w->renderer = r;
     w->jobs = js;
 
-    w->sun_direction = v3_norm(v3(-0.75f, -0.17f, -0.64f));
-    w->sun_color = v3(1.0f, 0.70f, 0.44f);
-    w->ambient_sky = v3(0.16f, 0.26f, 0.47f);
-    w->ambient_ground = v3(0.11f, 0.085f, 0.065f);
-    w->fog_color = v3(0.70f, 0.46f, 0.31f);
+    w->sun_direction = v3_norm(v3(-0.55f, -0.22f, -0.80f));
+    w->sun_color = v3(1.0f, 0.72f, 0.48f);
+    w->ambient_sky = v3(0.20f, 0.29f, 0.46f);
+    w->ambient_ground = v3(0.14f, 0.11f, 0.08f);
+    w->fog_color = v3(0.68f, 0.47f, 0.33f);
     w->fog_density = 0.00155f;
     w->cam_fov = 58.0f;
 
@@ -217,10 +217,10 @@ void hr_world_describe_frame(HrWorld* w, HrFrameDesc* f, float render_scale, flo
     f->focus = w->car_pos;
     f->sun_direction = w->sun_direction;
     f->sun_color = w->sun_color;
-    f->sun_intensity = 3.1f;
+    f->sun_intensity = 3.3f;
     f->ambient_sky = w->ambient_sky;
     f->ambient_ground = w->ambient_ground;
-    f->exposure = 0.95f;
+    f->exposure = 1.02f;
     f->time = time;
     f->fog_color = w->fog_color;
     f->fog_density = w->fog_density;
@@ -230,8 +230,8 @@ void hr_world_describe_frame(HrWorld* w, HrFrameDesc* f, float render_scale, flo
     f->bloom_enabled = 1;
     f->fxaa_enabled = 1;
     f->shadow_resolution = 2048;
-    f->bloom_intensity = 0.8f;
-    f->saturation = 1.10f;
+    f->bloom_intensity = 0.7f;
+    f->saturation = 1.08f;
     f->contrast = 1.04f;
     f->vignette = 0.34f;
     f->grain = 0.010f;

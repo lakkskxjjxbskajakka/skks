@@ -110,11 +110,11 @@ static void color_of(HrTexturePreset preset, float u, float v, float h, int peri
         }
         case HR_TEX_GRASS: {
             float dry = fbm2p(x * 0.5f, y * 0.5f, 3, period / 2, seed + 17u);
-            float green = 0.12f + n * 0.12f;
-            *r = green * 0.55f * (0.75f + dry * 0.25f);
-            *g = 0.165f + n * 0.17f;
-            *b = 0.045f + n * 0.035f;
-            if (dry > 0.25f) { *r += dry * 0.06f; *g += dry * 0.02f; *b -= 0.005f; }
+            float green = 0.13f + n * 0.13f;
+            *r = green * 0.52f * (0.75f + dry * 0.25f);
+            *g = 0.19f + n * 0.18f;
+            *b = 0.05f + n * 0.035f;
+            if (dry > 0.25f) { *r += dry * 0.05f; *g += dry * 0.02f; *b -= 0.003f; }
             *rough = 0.88f; *metal = 0.0f; *ao = 0.85f + n * 0.15f;
             break;
         }
@@ -144,9 +144,9 @@ static void color_of(HrTexturePreset preset, float u, float v, float h, int peri
             break;
         }
         case HR_TEX_FOLIAGE: {
-            float green = 0.09f + n * 0.13f;
-            *r = green * 0.42f; *g = 0.115f + n * 0.18f; *b = green * 0.36f;
-            *rough = 0.78f; *metal = 0.0f; *ao = 0.66f + n * 0.34f;
+            float green = 0.11f + n * 0.14f;
+            *r = green * 0.40f; *g = 0.14f + n * 0.20f; *b = green * 0.34f;
+            *rough = 0.80f; *metal = 0.0f; *ao = 0.62f + n * 0.38f;
             break;
         }
         case HR_TEX_TRUNK: {

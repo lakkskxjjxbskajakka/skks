@@ -309,8 +309,8 @@ static void place_props(HrWorld* w) {
         t->scale = 0.75f + hr_hash_float(seed ^ 0x1234u) * 0.95f;
         t->rotation = hr_hash_float(seed ^ 0xabcd) * HR_TAU;
         float warmth = hr_hash_float(seed ^ 0x777u);
-        t->tint = v4(0.52f + warmth * 0.20f, 0.68f + hr_hash_float(seed ^ 0x999u) * 0.25f,
-                     0.48f + (1.0f - warmth) * 0.18f, 1.0f);
+        t->tint = v4(0.58f + warmth * 0.18f, 0.78f + hr_hash_float(seed ^ 0x999u) * 0.22f,
+                     0.52f + (1.0f - warmth) * 0.16f, 1.0f);
         placed++;
     }
     w->tree_count = placed;

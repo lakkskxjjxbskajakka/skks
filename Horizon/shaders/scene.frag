@@ -163,10 +163,10 @@ void main() {
     vec3 direct = (kd * albedo / PI + spec) * radiance * ndl;
 
     float sh = shadow_factor(v_world, n, l);
-    direct *= mix(0.25, 1.0, sh);
+    direct *= mix(0.36, 1.0, sh);
 
     vec3 r = reflect(-v, n);
-    vec3 ambient_diffuse = sky_ambient(n) * albedo * ao;
+    vec3 ambient_diffuse = sky_ambient(n) * albedo * ao * 1.15;
     vec3 ambient_spec = sky_ambient(r) * mix(f0, vec3(1.0), 0.0) * ao;
     float spec_occlusion = mix(0.35, 1.0, pow(1.0 - roughness, 3.0));
     vec3 ambient = ambient_diffuse * (1.0 - metallic) + ambient_spec * spec_occlusion;
