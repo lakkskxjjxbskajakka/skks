@@ -94,3 +94,12 @@
 1141	1179	1795188977991845827	horizon_demo	70996045037f67f4
 2	240	1795189081544815413	CMakeFiles/horizon_demo.dir/game/src/world.c.o	d9aaefdb366c7da
 240	278	1795189081782819944	horizon_demo	70996045037f67f4
+2	232	1795190476859937324	CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o	911af732b47d212b
+3	385	1795190476861688237	CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.o	e7fd49881984bfcc
+2	313	1795190493012329474	CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.o	2192ea383beb07c1
+2	197	1795190518696078477	CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.o	722ee423a89e550b
+2	311	1795190518694853911	CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.o	2192ea383beb07c1
+312	419	1795190519004859097	libhorizon.a	54c93b6f95cb1e67
+419	461	1795190519111860887	horizon_demo	70996045037f67f4
+2	242	1795190524610965157	CMakeFiles/horizon_demo.dir/game/src/world.c.o	d9aaefdb366c7da
+242	284	1795190524850969906	horizon_demo	70996045037f67f4

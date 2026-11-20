@@ -92,9 +92,9 @@ void hr_vk_create_textures(HrRenderer* r, VkCommandBuffer cmd, HrGpuBuffer* stag
     for (int i = 0; i < HR_TEX_PRESET_COUNT; ++i) {
         HrTextureSet set;
         hr_texture_set_generate(&set, (HrTexturePreset)i, sizes[i], 0x51a7u + (u32)i * 97u);
-        upload_texture(r, cmd, &r->textures[i], &set.albedo, true, &staging[(*count)++]);
-        upload_texture(r, cmd, &r->textures[i], &set.normal, false, &staging[(*count)++]);
-        upload_texture(r, cmd, &r->textures[i], &set.orm, false, &staging[(*count)++]);
+        upload_texture(r, cmd, &r->tex_albedo[i], &set.albedo, true, &staging[(*count)++]);
+        upload_texture(r, cmd, &r->tex_normal[i], &set.normal, false, &staging[(*count)++]);
+        upload_texture(r, cmd, &r->tex_orm[i], &set.orm, false, &staging[(*count)++]);
         hr_image_free(&set.albedo);
         hr_image_free(&set.normal);
         hr_image_free(&set.orm);
@@ -168,10 +168,10 @@ void hr_vk_create_materials(HrRenderer* r) {
         m->ubo_mem = ubo.memory;
         m->ubo_map = ubo.mapped;
         int t = preset_texture((HrMaterialPreset)i);
-        m->albedo = &r->textures[t];
-        m->normal = &r->textures[t];
-        m->orm = &r->textures[t];
-        m->detail = &r->textures[HR_TEX_ROCK];
+        m->albedo = &r->tex_albedo[t];
+        m->normal = &r->tex_normal[t];
+        m->orm = &r->tex_orm[t];
+        m->detail = &r->tex_albedo[HR_TEX_ROCK];
 
         HrMaterialUbo mu;
         memset(&mu, 0, sizeof(mu));
@@ -339,7 +339,7 @@ void hr_vk_create_targets(HrRenderer* r, HrTargets* t, u32 hdr_w, u32 hdr_h, u32
 
 void hr_vk_update_frame_descriptors(HrRenderer* r, HrFrameRes* f, HrTargets* t) {
     VkDescriptorBufferInfo ubo = { f->ubo, 0, sizeof(HrGlobals) };
-    VkDescriptorImageInfo shadow = { r->textures[HR_TEX_ROCK].sampler, t->shadow_view,
+    VkDescriptorImageInfo shadow = { r->tex_albedo[HR_TEX_ROCK].sampler, t->shadow_view,
                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
     VkWriteDescriptorSet w[2];
     memset(w, 0, sizeof(w));
@@ -356,11 +356,11 @@ void hr_vk_update_frame_descriptors(HrRenderer* r, HrFrameRes* f, HrTargets* t) 
     w[1].pImageInfo = &shadow;
     vkUpdateDescriptorSets(r->device, 2, w, 0, NULL);
 
-    VkDescriptorImageInfo hdr = { r->textures[HR_TEX_ROCK].sampler, t->hdr_view,
+    VkDescriptorImageInfo hdr = { r->tex_albedo[HR_TEX_ROCK].sampler, t->hdr_view,
                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-    VkDescriptorImageInfo bloom_a = { r->textures[HR_TEX_ROCK].sampler, t->bloom_a_view,
+    VkDescriptorImageInfo bloom_a = { r->tex_albedo[HR_TEX_ROCK].sampler, t->bloom_a_view,
                                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-    VkDescriptorImageInfo bloom_b = { r->textures[HR_TEX_ROCK].sampler, t->bloom_b_view,
+    VkDescriptorImageInfo bloom_b = { r->tex_albedo[HR_TEX_ROCK].sampler, t->bloom_b_view,
                                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
     VkWriteDescriptorSet post[5];
     memset(post, 0, sizeof(post));

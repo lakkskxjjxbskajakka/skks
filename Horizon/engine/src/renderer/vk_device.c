@@ -615,10 +615,18 @@ void hr_renderer_shutdown(HrRenderer* r) {
     if (r->device) {
         hr_vk_shutdown_frames(r);
         for (int i = 0; i < HR_TEX_PRESET_COUNT; ++i) {
-            HrGpuTexture* t = &r->textures[i];
-            if (t->sampler) vkDestroySampler(r->device, t->sampler, NULL);
-            if (t->view) vkDestroyImageView(r->device, t->view, NULL);
-            hr_vk_destroy_image(r, &t->image, &t->memory);
+            HrGpuTexture* ta = &r->tex_albedo[i];
+            HrGpuTexture* tn = &r->tex_normal[i];
+            HrGpuTexture* to = &r->tex_orm[i];
+            if (ta->sampler) vkDestroySampler(r->device, ta->sampler, NULL);
+            if (ta->view) vkDestroyImageView(r->device, ta->view, NULL);
+            hr_vk_destroy_image(r, &ta->image, &ta->memory);
+            if (tn->sampler) vkDestroySampler(r->device, tn->sampler, NULL);
+            if (tn->view) vkDestroyImageView(r->device, tn->view, NULL);
+            hr_vk_destroy_image(r, &tn->image, &tn->memory);
+            if (to->sampler) vkDestroySampler(r->device, to->sampler, NULL);
+            if (to->view) vkDestroyImageView(r->device, to->view, NULL);
+            hr_vk_destroy_image(r, &to->image, &to->memory);
         }
         for (int i = 0; i < HR_MAT_COUNT; ++i) {
             HrGpuMaterial* m = &r->materials[i];

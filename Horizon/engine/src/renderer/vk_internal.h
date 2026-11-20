@@ -181,7 +181,9 @@ struct HrRenderer {
     int mesh_count;
     HrGpuMaterial materials[HR_MAT_COUNT];
 
-    HrGpuTexture textures[HR_TEX_PRESET_COUNT];
+    HrGpuTexture tex_albedo[HR_TEX_PRESET_COUNT];
+    HrGpuTexture tex_normal[HR_TEX_PRESET_COUNT];
+    HrGpuTexture tex_orm[HR_TEX_PRESET_COUNT];
 
     HR_DA(HrDrawCmd) draws;
     HR_DA(HrBatch) batches;
