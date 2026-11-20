@@ -6,7 +6,7 @@ on:
       duration:
         description: 'مدت زمان اجرا (دقیقه)'
         required: true
-        default: '60'
+        default: '355'
       opencode_port:
         description: 'پورت داخلی OpenCode Web'
         required: true
@@ -94,7 +94,6 @@ jobs:
           git clone https://github.com/ebouther/opencode-unlimited-proxy.git /tmp/opencode-unlimited-proxy
           cd /tmp/opencode-unlimited-proxy/stack
 
-          # فرمت صحیح: رشته ساده، نه آرایه JSON
           cat > .env <<EOF
           WARP_ACCEPT_TOS=1
           WARP_SOURCE_IPV6=
@@ -342,6 +341,7 @@ jobs:
 
       - name: نمایش خلاصه
         run: |
+          MODEL_COUNT=$(python3 -c "import json;c=json.load(open('$XDG_CONFIG_HOME/opencode/opencode.json'));print(len(c['provider']['opencode-unlimited-proxy']['models']))" 2>/dev/null || echo "?")
           {
             echo "## OpenCode Web (Secure) 🔐"
             echo ""
@@ -350,7 +350,7 @@ jobs:
             echo "- **Password:** \`admin\`"
             echo "- **پروکسی:** opencode-unlimited-proxy (حالت استاندارد با WARP داخلی)"
             echo "- **WARP Pool Size:** \`${WARP_POOL_SIZE}\`"
-            echo "- **تعداد مدل‌ها در کانفیگ:** \`$(python3 -c \"import json;c=json.load(open('$XDG_CONFIG_HOME/opencode/opencode.json'));print(len(c['provider']['opencode-unlimited-proxy']['models']))\" 2>/dev/null || echo '?')\`"
+            echo "- **تعداد مدل‌ها در کانفیگ:** \`${MODEL_COUNT}\`"
             echo "- **مدت:** ${{ github.event.inputs.duration }} دقیقه"
           } >> "$GITHUB_STEP_SUMMARY"
 
