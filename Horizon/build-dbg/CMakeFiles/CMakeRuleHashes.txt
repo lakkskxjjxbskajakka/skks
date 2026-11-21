@@ -1,0 +1,11 @@
+# Hashes of file build rules.
+0efb68d0d42c26d05e3b21d8a87c83ee generated/shaders_embedded.c
+ead7d73424eb349ac52b42db59928ad4 shaders/blur.frag.spv
+690f4766c71941dcd4fb76cc7ffc73d4 shaders/bright.frag.spv
+3db2993c79bce004722c2d05ceab4751 shaders/fullscreen.vert.spv
+a432a79b9618b922c0c16d163da05b02 shaders/post.frag.spv
+6d7b420b5fcf5e0b7361f51c361805d1 shaders/scene.frag.spv
+523123f486ae4a085af053cbc0191808 shaders/scene.vert.spv
+237cd88b088fc5be17d3eeb7ce19e87f shaders/shadow.vert.spv
+0104e45d3b499cf1265ef60602c6e5e2 shaders/sky.frag.spv
+90383273e5c92421ee3d45d354c52e1b shaders/sky.vert.spv

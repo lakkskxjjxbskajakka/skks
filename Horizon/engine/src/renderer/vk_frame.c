@@ -504,6 +504,12 @@ void hr_renderer_end_frame(HrRenderer* r) {
                         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 1);
+    hr_vk_image_barrier(cmd, t->depth, VK_IMAGE_ASPECT_DEPTH_BIT,
+                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                        VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 1);
 
     /* ---- bloom chain ---- */
     u32 bw = HR_MAX(1u, t->hdr_width / 2u), bh = HR_MAX(1u, t->hdr_height / 2u);
@@ -583,15 +589,17 @@ void hr_renderer_end_frame(HrRenderer* r) {
     lrp.pClearValues = &black;
     vkCmdBeginRenderPass(cmd, &lrp, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, r->post_pipeline);
+    VkDescriptorSet post_sets[2] = { f->global_set, f->post_set };
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, r->post_layout_b,
-                            0, 1, &f->post_set, 0, NULL);
+                            0, 2, post_sets, 0, NULL);
     Vec4 p0 = v4(r->frame.exposure, r->frame.bloom_enabled ? r->frame.bloom_intensity : 0.0f,
                  r->frame.saturation, r->frame.contrast);
     Vec4 p1 = v4(r->frame.vignette, r->frame.grain, r->frame.time,
                  r->frame.fxaa_enabled ? 1.0f : 0.0f);
     Vec4 p2 = v4(r->swapchain_srgb ? 0.0f : 1.0f, 0, 0, 0);
-    Vec4 post_pc[3] = { p0, p1, p2 };
-    vkCmdPushConstants(cmd, r->post_layout_b, VK_SHADER_STAGE_FRAGMENT_BIT, 0, 48, post_pc);
+    Vec4 p3 = v4(nearp, farp, 0.85f, 0.0f);
+    Vec4 post_pc[4] = { p0, p1, p2, p3 };
+    vkCmdPushConstants(cmd, r->post_layout_b, VK_SHADER_STAGE_FRAGMENT_BIT, 0, 64, post_pc);
     vkCmdDraw(cmd, 3, 1, 0, 0);
     vkCmdEndRenderPass(cmd);
 

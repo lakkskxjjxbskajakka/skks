@@ -445,12 +445,13 @@ static void create_descriptor_layouts(HrRenderer* r) {
         VK_CHECK(vkCreateDescriptorSetLayout(r->device, &ci, NULL, &r->post_dsl_a));
     }
     {
-        VkDescriptorSetLayoutBinding b[2] = {
+        VkDescriptorSetLayoutBinding b[3] = {
             make_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
-            make_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            make_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT),
+            make_binding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
         };
         VkDescriptorSetLayoutCreateInfo ci = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-        ci.bindingCount = 2;
+        ci.bindingCount = 3;
         ci.pBindings = b;
         VK_CHECK(vkCreateDescriptorSetLayout(r->device, &ci, NULL, &r->post_dsl_b));
     }
@@ -504,10 +505,11 @@ static void create_pipeline_layouts(HrRenderer* r) {
         VK_CHECK(vkCreatePipelineLayout(r->device, &ci, NULL, &r->post_layout_a));
     }
     {
-        VkPushConstantRange pc = { VK_SHADER_STAGE_FRAGMENT_BIT, 0, 48 };
+        VkPushConstantRange pc = { VK_SHADER_STAGE_FRAGMENT_BIT, 0, 64 };
+        VkDescriptorSetLayout sets[2] = { r->global_dsl, r->post_dsl_b };
         VkPipelineLayoutCreateInfo ci = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-        ci.setLayoutCount = 1;
-        ci.pSetLayouts = &r->post_dsl_b;
+        ci.setLayoutCount = 2;
+        ci.pSetLayouts = sets;
         ci.pushConstantRangeCount = 1;
         ci.pPushConstantRanges = &pc;
         VK_CHECK(vkCreatePipelineLayout(r->device, &ci, NULL, &r->post_layout_b));

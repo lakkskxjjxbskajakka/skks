@@ -74,12 +74,12 @@ bool hr_game_world_create(HrGameWorld** out, HrRenderer* r, HrJobSystem* js) {
     w->renderer = r;
     w->jobs = js;
 
-    w->sun_direction = v3_norm(v3(-0.55f, -0.22f, -0.80f));
-    w->sun_color = v3(1.0f, 0.72f, 0.48f);
-    w->ambient_sky = v3(0.20f, 0.29f, 0.46f);
-    w->ambient_ground = v3(0.14f, 0.11f, 0.08f);
-    w->fog_color = v3(0.68f, 0.47f, 0.33f);
-    w->fog_density = 0.00155f;
+    w->sun_direction = v3_norm(v3(-0.55f, -0.32f, -0.80f));
+    w->sun_color = v3(1.0f, 0.78f, 0.54f);
+    w->ambient_sky = v3(0.34f, 0.44f, 0.64f);
+    w->ambient_ground = v3(0.20f, 0.16f, 0.11f);
+    w->fog_color = v3(0.72f, 0.52f, 0.37f);
+    w->fog_density = 0.00130f;
     w->cam_fov = 58.0f;
 
     hr_game_world_build_environment(w);
@@ -327,10 +327,10 @@ void hr_game_world_describe_frame(HrGameWorld* w, HrFrameDesc* f, float render_s
     f->focus = w->car_pos;
     f->sun_direction = w->sun_direction;
     f->sun_color = w->sun_color;
-    f->sun_intensity = 3.3f;
+    f->sun_intensity = 4.4f;
     f->ambient_sky = w->ambient_sky;
     f->ambient_ground = w->ambient_ground;
-    f->exposure = 1.02f;
+    f->exposure = 1.28f;
     f->time = time;
     f->fog_color = w->fog_color;
     f->fog_density = w->fog_density;

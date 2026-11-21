@@ -3,12 +3,16 @@
 
 CMakeFiles/horizon_bench.dir/benchmarks/bench_core.c.o
  /home/runner/work/skks/skks/Horizon/benchmarks/bench_core.c
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/animation.h
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/assets.h
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/containers.h
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/core.h
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/ecs.h
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/jobs.h
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/math.h
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/memory.h
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/mesh.h
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/physics.h
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/scene.h
  /usr/include/features-time64.h
  /usr/include/features.h

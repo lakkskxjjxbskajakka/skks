@@ -23,6 +23,8 @@ typedef enum HrMaterialPreset {
     HR_MAT_LIGHT_WHITE,
     HR_MAT_LIGHT_RED,
     HR_MAT_SIGN,
+    HR_MAT_WATER,
+    HR_MAT_WINDOW,
     HR_MAT_COUNT
 } HrMaterialPreset;
 

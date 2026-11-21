@@ -142,6 +142,8 @@ static int preset_texture(HrMaterialPreset mat) {
         case HR_MAT_LIGHT_WHITE: return HR_TEX_GLASS;
         case HR_MAT_LIGHT_RED: return HR_TEX_GLASS;
         case HR_MAT_SIGN: return HR_TEX_CONCRETE;
+        case HR_MAT_WATER: return HR_TEX_GLASS;
+        case HR_MAT_WINDOW: return HR_TEX_GLASS;
         default: return HR_TEX_CONCRETE;
     }
 }
@@ -181,19 +183,19 @@ void hr_vk_create_materials(HrRenderer* r) {
         switch ((HrMaterialPreset)i) {
             case HR_MAT_TERRAIN:
                 mu.params = v4(1.0f, 1.0f, 0.0f, 1.0f);
-                mu.uv_scale = v4(1, 1, 1.25f, 1.0f);
+                mu.uv_scale = v4(1, 1, 0.45f, 1.0f);
                 break;
             case HR_MAT_ROAD:
                 mu.params = v4(1.0f, 1.0f, 0.0f, 2.0f);
-                mu.uv_scale = v4(1, 1, 1.0f, 1.0f);
+                mu.uv_scale = v4(1, 1, 0.32f, 1.0f);
                 break;
             case HR_MAT_CAR_PAINT:
                 mu.params = v4(1.0f, 1.0f, 0.0f, 4.0f);
-                mu.uv_scale = v4(2.0f, 2.0f, 0.5f, 1.0f);
+                mu.uv_scale = v4(2.0f, 2.0f, 0.35f, 1.0f);
                 break;
             case HR_MAT_GLASS:
-                mu.params = v4(1.0f, 1.0f, 0.0f, 0.0f);
-                mu.uv_scale = v4(1, 1, 0.1f, 1.0f);
+                mu.params = v4(0.0f, 0.85f, 0.0f, 64.0f);
+                mu.uv_scale = v4(1, 1, 0.05f, 1.0f);
                 break;
             case HR_MAT_RUBBER:
                 mu.base_color = v4(0.16f, 0.16f, 0.16f, 1);
@@ -202,20 +204,22 @@ void hr_vk_create_materials(HrRenderer* r) {
                 break;
             case HR_MAT_METAL:
                 mu.params = v4(1.0f, 1.0f, 0.0f, 0.0f);
-                mu.uv_scale = v4(2, 2, 0.7f, 1.0f);
+                mu.uv_scale = v4(2, 2, 0.5f, 1.0f);
                 break;
             case HR_MAT_FOLIAGE:
                 mu.params = v4(0.0f, 1.0f, 0.0f, 16.0f);
+                mu.uv_scale = v4(1, 1, 0.55f, 1.0f);
                 break;
             case HR_MAT_TRUNK:
                 mu.params = v4(0.0f, 1.0f, 0.0f, 0.0f);
+                mu.uv_scale = v4(1, 1, 0.8f, 1.0f);
                 break;
             case HR_MAT_ROCK:
                 mu.params = v4(0.0f, 1.0f, 0.0f, 0.0f);
-                mu.uv_scale = v4(1, 1, 1.2f, 1.0f);
+                mu.uv_scale = v4(1, 1, 1.0f, 1.0f);
                 break;
             case HR_MAT_CONCRETE:
-                mu.uv_scale = v4(1, 1, 0.8f, 1.0f);
+                mu.uv_scale = v4(1, 1, 0.7f, 1.0f);
                 break;
             case HR_MAT_LIGHT_WHITE:
                 mu.base_color = v4(1.0f, 0.92f, 0.75f, 1);
@@ -230,6 +234,16 @@ void hr_vk_create_materials(HrRenderer* r) {
             case HR_MAT_SIGN:
                 mu.base_color = v4(0.85f, 0.85f, 0.85f, 1);
                 mu.uv_scale = v4(1, 1, 0.5f, 1.0f);
+                break;
+            case HR_MAT_WATER:
+                mu.base_color = v4(0.02f, 0.06f, 0.08f, 1);
+                mu.params = v4(0.0f, 0.08f, 0.0f, 32.0f);
+                mu.uv_scale = v4(1, 1, 0.0f, 1.0f);
+                break;
+            case HR_MAT_WINDOW:
+                mu.base_color = v4(1.0f, 0.68f, 0.34f, 1);
+                mu.params = v4(0.0f, 0.4f, 1.8f, 8.0f);
+                mu.uv_scale = v4(1, 1, 0.05f, 1.0f);
                 break;
             default: break;
         }
@@ -275,7 +289,8 @@ void hr_vk_create_targets(HrRenderer* r, HrTargets* t, u32 hdr_w, u32 hdr_h, u32
                        VK_FORMAT_R16G16B16A16_SFLOAT,
                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
     hr_vk_create_image(r, &t->depth, &t->depth_mem, hdr_w, hdr_h, 1, 1,
-                       VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+                       VK_FORMAT_D32_SFLOAT,
+                       VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
     u32 bw = HR_MAX(1u, hdr_w / 2), bh = HR_MAX(1u, hdr_h / 2);
     hr_vk_create_image(r, &t->bloom_a, &t->bloom_a_mem, bw, bh, 1, 1,
                        VK_FORMAT_R16G16B16A16_SFLOAT,
@@ -372,9 +387,11 @@ void hr_vk_update_frame_descriptors(HrRenderer* r, HrFrameRes* f, HrTargets* t) 
                                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
     VkDescriptorImageInfo bloom_b = { r->tex_albedo[HR_TEX_ROCK].sampler, t->bloom_b_view,
                                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-    VkWriteDescriptorSet post[5];
+    VkDescriptorImageInfo depth = { r->shadow_sampler, t->depth_view,
+                                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL };
+    VkWriteDescriptorSet post[6];
     memset(post, 0, sizeof(post));
-    for (int i = 0; i < 5; ++i) post[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    for (int i = 0; i < 6; ++i) post[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     post[0].dstSet = f->bright_set;
     post[0].dstBinding = 0;
     post[0].descriptorCount = 1;
@@ -400,5 +417,10 @@ void hr_vk_update_frame_descriptors(HrRenderer* r, HrFrameRes* f, HrTargets* t) 
     post[4].descriptorCount = 1;
     post[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     post[4].pImageInfo = &bloom_a;
-    vkUpdateDescriptorSets(r->device, 5, post, 0, NULL);
+    post[5].dstSet = f->post_set;
+    post[5].dstBinding = 2;
+    post[5].descriptorCount = 1;
+    post[5].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    post[5].pImageInfo = &depth;
+    vkUpdateDescriptorSets(r->device, 6, post, 0, NULL);
 }
