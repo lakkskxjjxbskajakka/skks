@@ -9,6 +9,65 @@ static float wrap_angle(float a) {
     return a;
 }
 
+static float world_ground_cb(void* user, float x, float z) {
+    return hr_ground_height((HrGameWorld*)user, x, z);
+}
+
+static void build_props(HrGameWorld* w) {
+    HrMeshData m;
+    hr_mesh_init(&m, "barrel");
+    hr_mesh_cylinder(&m, v3(0, 0, 0), 0.42f, 0.9f, 12, true);
+    hr_mesh_finalize(&m);
+    w->mesh_barrel = hr_renderer_upload_mesh(w->renderer, &m, "barrel");
+    hr_mesh_free(&m);
+
+    HrPhysicsConfig pcfg;
+    hr_physics_default_config(&pcfg);
+    pcfg.max_bodies = 512;
+    pcfg.solver_iterations = 10;
+    hr_physics_create(&w->physics, &pcfg);
+    hr_physics_set_ground(w->physics, world_ground_cb, w);
+
+    HrBodyDesc car = {0};
+    car.shape.type = HR_SHAPE_BOX;
+    car.shape.half_extents = v3(1.0f, 0.45f, 2.1f);
+    car.position = v3(0, 1, 0);
+    car.rotation = quat_identity();
+    car.mass = 0.0f;
+    car.friction = 0.8f;
+    car.restitution = 0.1f;
+    car.flags = HR_BODY_KINEMATIC;
+    car.layer = 2;
+    car.mask = 0xffffffffu;
+    w->car_body = hr_physics_add_body(w->physics, &car);
+
+    w->prop_capacity = 48;
+    w->props = (HrBodyHandle*)hr_calloc((usize)w->prop_capacity, sizeof(HrBodyHandle));
+    w->prop_spawn = (Vec3*)hr_calloc((usize)w->prop_capacity, sizeof(Vec3));
+    w->prop_count = 0;
+    for (int i = 0; i < w->prop_capacity; ++i) {
+        int idx = (i * 37 + 13) % w->road_count;
+        const HrRoadSample* s = &w->road[idx];
+        float side = (i % 2 == 0) ? 1.0f : -1.0f;
+        float offset = HR_ROAD_HALF_WIDTH + 1.2f + (float)(i % 3) * 0.9f;
+        Vec3 p = v3_add(s->pos, v3_scale(s->right, side * offset));
+        p.y = hr_ground_height(w, p.x, p.z) + 0.5f;
+        w->prop_spawn[w->prop_count] = p;
+        HrBodyDesc bd = {0};
+        bd.shape.type = HR_SHAPE_SPHERE;
+        bd.shape.radius = 0.42f;
+        bd.position = p;
+        bd.rotation = quat_identity();
+        bd.mass = 8.0f;
+        bd.friction = 0.7f;
+        bd.restitution = 0.15f;
+        bd.flags = HR_BODY_GRAVITY | HR_BODY_SLEEPABLE;
+        bd.layer = 1;
+        bd.mask = 0xffffffffu;
+        w->props[w->prop_count++] = hr_physics_add_body(w->physics, &bd);
+    }
+}
+
 bool hr_game_world_create(HrGameWorld** out, HrRenderer* r, HrJobSystem* js) {
     HrGameWorld* w = (HrGameWorld*)hr_calloc(1, sizeof(HrGameWorld));
     if (!w) return false;
@@ -25,6 +84,7 @@ bool hr_game_world_create(HrGameWorld** out, HrRenderer* r, HrJobSystem* js) {
 
     hr_game_world_build_environment(w);
     hr_game_world_build_car(w);
+    build_props(w);
     hr_game_world_reset(w);
     *out = w;
     return true;
@@ -32,6 +92,9 @@ bool hr_game_world_create(HrGameWorld** out, HrRenderer* r, HrJobSystem* js) {
 
 void hr_game_world_destroy(HrGameWorld* w) {
     if (!w) return;
+    hr_physics_destroy(w->physics);
+    hr_free(w->props);
+    hr_free(w->prop_spawn);
     hr_free(w->road);
     hr_free(w->trees);
     hr_free(w->rocks);
@@ -61,6 +124,18 @@ void hr_game_world_reset(HrGameWorld* w) {
     w->cam_pos = v3_sub(v3_add(w->car_pos, v3(0, 3.2f, 0)), v3_scale(w->car_forward, 7.2f));
     w->cam_target = v3_add(w->car_pos, v3(0, 1.0f, 0));
     w->cam_shake = 0.0f;
+
+    if (w->physics && HR_BODY_IS_VALID(w->car_body)) {
+        hr_physics_set_transform(w->physics, w->car_body, v3(w->car_pos.x, w->car_y + 0.45f, w->car_pos.z),
+                                 quat_from_euler(v3(0, w->car_yaw, 0)));
+        hr_physics_set_velocity(w->physics, w->car_body, v3(0, 0, 0), v3(0, 0, 0));
+    }
+    for (int i = 0; i < w->prop_count; ++i) {
+        if (!HR_BODY_IS_VALID(w->props[i])) continue;
+        hr_physics_set_transform(w->physics, w->props[i], w->prop_spawn[i], quat_identity());
+        hr_physics_set_velocity(w->physics, w->props[i], v3(0, 0, 0), v3(0, 0, 0));
+        hr_physics_wake(w->physics, w->props[i]);
+    }
 }
 
 static void autopilot(HrGameWorld* w, float* throttle, float* steer, float* brake) {
@@ -158,6 +233,35 @@ void hr_game_world_update(HrGameWorld* w, float dt, const HrGameWorldInput* inpu
     w->brake_lights = (brake > 0.05f) || (throttle < -0.05f) || (input->handbrake && speed > 0.5f);
     w->boost_active = input->boost;
 
+    if (w->physics) {
+        Vec3 car_vel = v3_scale(w->car_forward, w->car_speed);
+        if (HR_BODY_IS_VALID(w->car_body)) {
+            hr_physics_set_transform(w->physics, w->car_body,
+                                     v3(w->car_pos.x, w->car_y + 0.45f, w->car_pos.z),
+                                     quat_from_euler(v3(w->car_pitch, w->car_yaw, w->car_roll)));
+            hr_physics_set_velocity(w->physics, w->car_body, car_vel, v3(0, 0, 0));
+        }
+        hr_physics_step(w->physics, dt);
+
+        /* Simple car-prop collision response: slow car when intersecting a prop. */
+        for (int i = 0; i < w->prop_count; ++i) {
+            Vec3 pp; Quat pr;
+            if (!hr_physics_get_transform(w->physics, w->props[i], &pp, &pr)) continue;
+            Vec3 d = v3_sub(pp, w->car_pos);
+            d.y = 0.0f;
+            float dist2 = v3_len_sq(d);
+            float rr = 1.8f;
+            if (dist2 < rr * rr && dist2 > 1e-6f) {
+                float pdist = sqrtf(dist2);
+                Vec3 n = v3_scale(d, 1.0f / pdist);
+                w->car_pos = v3_sub(w->car_pos, v3_scale(n, (rr - pdist) * 0.5f));
+                w->car_speed *= 0.85f;
+                hr_physics_apply_impulse(w->physics, w->props[i],
+                                         v3_scale(n, HR_MAX(w->car_speed, 2.0f) * 20.0f), pp);
+            }
+        }
+    }
+
     Vec3 cam_desired = v3_sub(w->car_pos, v3_scale(w->car_forward, 7.1f));
     cam_desired = v3_add(cam_desired, v3(0.0f, 3.15f, 0.0f));
     cam_desired = v3_add(cam_desired, v3_scale(w->car_right, -steer_in * 0.55f));
@@ -202,6 +306,12 @@ void hr_game_world_render(HrGameWorld* w) {
     for (int i = 0; i < w->post_count; ++i) {
         Mat4 model = mat4_mul(mat4_translate(w->posts[i].pos), mat4_rotate_y(w->posts[i].rotation));
         hr_renderer_draw(r, w->mesh_post, HR_MAT_CONCRETE, model, v4(0.42f, 0.41f, 0.39f, 1));
+    }
+    for (int i = 0; i < w->prop_count; ++i) {
+        Vec3 pp; Quat pr;
+        if (!hr_physics_get_transform(w->physics, w->props[i], &pp, &pr)) continue;
+        Mat4 model = mat4_compose(pp, pr, v3s(1.0f));
+        hr_renderer_draw(r, w->mesh_barrel, HR_MAT_METAL, model, v4(0.55f, 0.25f, 0.08f, 1.0f));
     }
     hr_game_world_draw_car(w, r);
 }

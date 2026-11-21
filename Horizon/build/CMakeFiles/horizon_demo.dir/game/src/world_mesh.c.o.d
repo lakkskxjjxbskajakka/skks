@@ -56,4 +56,5 @@ CMakeFiles/horizon_demo.dir/game/src/world_mesh.c.o: \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/mesh.h \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/platform.h \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/jobs.h \
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/physics.h \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/memory.h

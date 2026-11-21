@@ -76,6 +76,8 @@ set(HR_ENGINE_SOURCES
   engine/src/core/scene.c
   engine/src/core/physics.c
   engine/src/core/animation.c
+  engine/src/core/assets.c
+  engine/src/core/adaptive.c
   engine/src/platform/platform_linux.c
   engine/src/platform/platform_win32.c
   engine/src/renderer/vk_common.c

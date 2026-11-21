@@ -55,6 +55,7 @@ CMakeFiles/horizon_demo.dir/game/src/demo.c.o: \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/mesh.h \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/jobs.h \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/memory.h \
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/adaptive.h \
  /home/runner/work/skks/skks/Horizon/game/src/world.h \
  /usr/include/errno.h /usr/include/x86_64-linux-gnu/bits/errno.h \
  /usr/include/linux/errno.h /usr/include/x86_64-linux-gnu/asm/errno.h \

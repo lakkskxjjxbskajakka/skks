@@ -6,6 +6,9 @@
 #include "horizon/jobs.h"
 #include "horizon/ecs.h"
 #include "horizon/scene.h"
+#include "horizon/physics.h"
+#include "horizon/animation.h"
+#include "horizon/assets.h"
 
 #include <stdatomic.h>
 
@@ -178,6 +181,59 @@ int main(int argc, char** argv) {
     bench_jobs();
     bench_ecs();
     bench_scene();
+    /* physics */
+    printf("\n-- physics --\n");
+    {
+        HrPhysicsConfig pcfg; hr_physics_default_config(&pcfg); pcfg.max_bodies = 256;
+        HrPhysicsWorld* pw = NULL; hr_physics_create(&pw, &pcfg);
+        HrBodyDesc plane = {0}; plane.shape.type = HR_SHAPE_PLANE; plane.rotation = quat_identity();
+        plane.flags = HR_BODY_STATIC; plane.friction = 0.8f; hr_physics_add_body(pw, &plane);
+        HrBodyDesc s = {0}; s.shape.type = HR_SHAPE_SPHERE; s.shape.radius = 0.25f; s.rotation = quat_identity();
+        s.mass = 1.0f; s.flags = HR_BODY_GRAVITY; s.friction = 0.5f;
+        for (int i = 0; i < 128; ++i) { s.position = v3((float)(i%16)*0.6f, 2.0f + (float)i*0.1f, (float)(i/16)*0.6f); hr_physics_add_body(pw, &s); }
+        u32 iters = 2000;
+        double t0 = now_ms();
+        for (u32 i = 0; i < iters; ++i) hr_physics_step(pw, 1.0f/120.0f);
+        double dt = now_ms() - t0;
+        printf("%-28s %10.3f ms  %10.2f steps/s\n", "step 128 bodies", dt, dt>0? (double)iters/(dt/1000.0):0);
+        hr_physics_destroy(pw);
+    }
+    /* animation */
+    printf("\n-- animation --\n");
+    {
+        HrSkeleton sk; hr_skeleton_init(&sk);
+        for (int i=0;i<32;++i) { char n[16]; snprintf(n,sizeof(n),"j%d",i); hr_skeleton_add_joint(&sk,n,i==0?-1:i-1,mat4_identity()); }
+        HrAnimationClip* clip = hr_animation_clip_create("bench", 1.0f, true);
+        for (int i=0;i<32;++i) { HrAnimTrack* tr = hr_animation_clip_add_track(clip,(u32)i); hr_anim_track_add_position(tr,0,v3(0,0,0)); hr_anim_track_add_position(tr,1,v3((float)i,0,0)); hr_anim_track_add_rotation(tr,0,quat_identity()); hr_anim_track_add_rotation(tr,1,quat_axis_angle(v3(0,1,0),1.0f)); }
+        HrPose pose;
+        double t0 = now_ms();
+        for (u32 i=0;i<g_iters;++i) hr_animation_sample(clip, (float)(i%1000)*0.001f, &pose, 32);
+        double dt = now_ms() - t0;
+        printf("%-28s %10.3f ms  %10.2f Mops/s\n", "sample 32-joint clip", dt, dt>0?(double)g_iters/(dt*1000.0):0);
+        Mat4 pal[HR_ANIM_MAX_JOINTS];
+        t0 = now_ms();
+        for (u32 i=0;i<g_iters;++i) hr_pose_palette(&sk, &pose, pal);
+        dt = now_ms() - t0;
+        printf("%-28s %10.3f ms  %10.2f Mops/s\n", "pose_palette 32 joints", dt, dt>0?(double)g_iters/(dt*1000.0):0);
+        hr_animation_clip_destroy(clip);
+    }
+    /* assets */
+    printf("\n-- assets --\n");
+    {
+        HrAssetPack pack; hr_asset_pack_begin(&pack);
+        char name[32], payload[64];
+        for (int i=0;i<256;++i){ snprintf(name,sizeof(name),"asset_%d",i); snprintf(payload,sizeof(payload),"payload-%d",i); hr_asset_pack_add(&pack,HR_ASSET_BLOB,name,payload,strlen(payload)+1); }
+        hr_asset_pack_write(&pack,"/tmp/horizon_bench_assets.hras");
+        hr_asset_pack_free(&pack);
+        HrAssetPack loaded; hr_asset_pack_open(&loaded,"/tmp/horizon_bench_assets.hras");
+        volatile usize sink=0;
+        double t0=now_ms();
+        for (u32 i=0;i<g_iters;++i){ char n[32]; snprintf(n,sizeof(n),"asset_%u", i%256u); const HrAssetEntry* e=hr_asset_pack_find(&loaded,n); if(e){ usize sz; const void* d=hr_asset_pack_data(&loaded,e,&sz); sink+=sz+(usize)d; } }
+        double dt=now_ms()-t0;
+        printf("%-28s %10.3f ms  %10.2f Mops/s\n", "pack_find+data 256", dt, dt>0?(double)g_iters/(dt*1000.0):0);
+        (void)sink;
+        hr_asset_pack_free(&loaded);
+    }
     printf("\npeak heap: %.2f MiB\n", (double)hr_mem_peak() / (1024.0 * 1024.0));
     return 0;
 }

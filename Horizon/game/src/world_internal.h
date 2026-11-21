@@ -5,6 +5,7 @@
 #include "world.h"
 #include "horizon/jobs.h"
 #include "horizon/mesh.h"
+#include "horizon/physics.h"
 
 #define HR_ROAD_SAMPLES 1024
 #define HR_TERRAIN_SEGMENTS 176
@@ -73,6 +74,7 @@ struct HrGameWorld {
     int mesh_car_light_w;
     int mesh_car_light_r;
     int mesh_car_metal;
+    int mesh_barrel;
 
     Vec3 car_pos;
     float car_yaw;
@@ -105,6 +107,13 @@ struct HrGameWorld {
     Vec3 ambient_ground;
     Vec3 fog_color;
     float fog_density;
+
+    HrPhysicsWorld* physics;
+    HrBodyHandle car_body;
+    HrBodyHandle* props;
+    Vec3* prop_spawn;
+    int prop_count;
+    int prop_capacity;
 };
 
 /* world_mesh.c */

@@ -55,4 +55,8 @@ CMakeFiles/horizon_bench.dir/benchmarks/bench_core.c.o: \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/jobs.h \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/ecs.h \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/scene.h \
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/physics.h \
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/animation.h \
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/assets.h \
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/mesh.h \
  /usr/lib/gcc/x86_64-linux-gnu/15/include/stdatomic.h

@@ -49,6 +49,18 @@
 },
 {
   "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/core/assets.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/core/assets.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/core/assets.c",
+  "output": "CMakeFiles/horizon.dir/engine/src/core/assets.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/core/adaptive.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/core/adaptive.c",
+  "file": "/home/runner/work/skks/skks/Horizon/engine/src/core/adaptive.c",
+  "output": "CMakeFiles/horizon.dir/engine/src/core/adaptive.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
   "command": "/usr/bin/cc -DHR_PLATFORM_LINUX=1 -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/platform/platform_linux.c",
   "file": "/home/runner/work/skks/skks/Horizon/engine/src/platform/platform_linux.c",
   "output": "CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o"

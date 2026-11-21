@@ -4,6 +4,7 @@
 #include "horizon/jobs.h"
 #include "horizon/memory.h"
 #include "horizon/core.h"
+#include "horizon/adaptive.h"
 #include "world.h"
 
 #include <errno.h>
@@ -148,10 +149,10 @@ int main(int argc, char** argv) {
         }
     }
 
-    float render_scale = HR_CLAMP(opt.scale, 0.45f, 1.0f);
-    int shadow_res = HR_CLAMP(opt.shadow_res, 512, 4096);
-    float ema_ms = 16.0f;
-    int quality_cooldown = 0;
+    HrAdaptiveConfig acfg;
+    hr_adaptive_default_config(&acfg);
+    HrAdaptiveState adaptive;
+    hr_adaptive_init(&adaptive, &acfg, HR_CLAMP(opt.scale, 0.45f, 1.0f), HR_CLAMP(opt.shadow_res, 512, 4096));
     const float fixed_dt = 1.0f / 60.0f;
     double last_time = hr_time_sec();
     double sim_time = 0.0;
@@ -202,8 +203,8 @@ int main(int argc, char** argv) {
         sim_time += dt;
 
         HrFrameDesc fd;
-        hr_game_world_describe_frame(world, &fd, render_scale, (float)sim_time);
-        fd.shadow_resolution = shadow_res;
+        hr_game_world_describe_frame(world, &fd, adaptive.render_scale, (float)sim_time);
+        fd.shadow_resolution = adaptive.shadow_resolution;
         fd.screenshot_path = NULL;
         if (manual_shot) {
             fd.screenshot_path = shot_path;
@@ -226,7 +227,6 @@ int main(int argc, char** argv) {
         double ms = st.cpu_frame_ms;
         if (st.gpu_frame_ms > ms) ms = st.gpu_frame_ms;
         if (ms <= 0.0) ms = 16.6;
-        ema_ms = ema_ms * 0.90f + (float)ms * 0.10f;
 
         if (frame > 30) {
             sum_ms += ms;
@@ -240,20 +240,12 @@ int main(int argc, char** argv) {
                     (unsigned long long)frame, st.cpu_frame_ms, st.gpu_frame_ms,
                     st.cpu_frame_ms > 0.0 ? 1000.0 / st.cpu_frame_ms : 0.0,
                     st.draw_calls, st.instances, st.triangles,
-                    st.hdr_width, st.hdr_height, render_scale, shadow_res);
+                    st.hdr_width, st.hdr_height, adaptive.render_scale, adaptive.shadow_resolution);
             if ((frame % 60) == 0) fflush(bench);
         }
 
-        if (opt.adaptive && frame > 40 && !opt.screenshot) {
-            if (quality_cooldown > 0) quality_cooldown--;
-            else if (ema_ms > 19.0f) {
-                if (render_scale > 0.62f) { render_scale -= 0.06f; quality_cooldown = 24; }
-                else if (shadow_res > 1024) { shadow_res /= 2; quality_cooldown = 40; }
-            } else if (ema_ms < 12.5f) {
-                if (shadow_res < 2048) { shadow_res *= 2; quality_cooldown = 90; }
-                else if (render_scale < 1.0f) { render_scale += 0.04f; quality_cooldown = 90; }
-            }
-        }
+        if (opt.adaptive && frame > 40 && !opt.screenshot)
+            hr_adaptive_update(&adaptive, (float)ms);
 
         title_tick++;
         if (title_tick >= 15) {
@@ -262,7 +254,7 @@ int main(int argc, char** argv) {
             snprintf(title, sizeof(title),
                      "Horizon | %s | %.0f km/h | %s | %.0f fps | %u draws | scale %.2f",
                      st.backend ? st.backend : "vk", hr_game_world_speed_kph(world),
-                     hr_game_world_area(world), fps, st.draw_calls, render_scale);
+                     hr_game_world_area(world), fps, st.draw_calls, adaptive.render_scale);
             hr_window_set_title(window, title);
         }
 
@@ -271,7 +263,7 @@ int main(int argc, char** argv) {
 
         if (opt.frames == 0 && (frame % 600) == 0) {
             HR_INFO("demo", "%.0f fps avg, %.0f km/h, %u draws, %u instances",
-                    1000.0 / HR_MAX(ema_ms, 0.001f), hr_game_world_speed_kph(world),
+                    1000.0 / HR_MAX(adaptive.ema_ms, 0.001f), hr_game_world_speed_kph(world),
                     st.draw_calls, st.instances);
         }
     }

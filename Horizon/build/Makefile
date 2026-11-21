@@ -218,6 +218,30 @@ benchmarks/bench_core.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon_bench.dir/build.make CMakeFiles/horizon_bench.dir/benchmarks/bench_core.c.s
 .PHONY : benchmarks/bench_core.c.s
 
+engine/src/core/adaptive.o: engine/src/core/adaptive.c.o
+.PHONY : engine/src/core/adaptive.o
+
+# target to build an object file
+engine/src/core/adaptive.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/adaptive.c.o
+.PHONY : engine/src/core/adaptive.c.o
+
+engine/src/core/adaptive.i: engine/src/core/adaptive.c.i
+.PHONY : engine/src/core/adaptive.i
+
+# target to preprocess a source file
+engine/src/core/adaptive.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/adaptive.c.i
+.PHONY : engine/src/core/adaptive.c.i
+
+engine/src/core/adaptive.s: engine/src/core/adaptive.c.s
+.PHONY : engine/src/core/adaptive.s
+
+# target to generate assembly for a file
+engine/src/core/adaptive.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/adaptive.c.s
+.PHONY : engine/src/core/adaptive.c.s
+
 engine/src/core/animation.o: engine/src/core/animation.c.o
 .PHONY : engine/src/core/animation.o
 
@@ -241,6 +265,30 @@ engine/src/core/animation.s: engine/src/core/animation.c.s
 engine/src/core/animation.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/animation.c.s
 .PHONY : engine/src/core/animation.c.s
+
+engine/src/core/assets.o: engine/src/core/assets.c.o
+.PHONY : engine/src/core/assets.o
+
+# target to build an object file
+engine/src/core/assets.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/assets.c.o
+.PHONY : engine/src/core/assets.c.o
+
+engine/src/core/assets.i: engine/src/core/assets.c.i
+.PHONY : engine/src/core/assets.i
+
+# target to preprocess a source file
+engine/src/core/assets.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/assets.c.i
+.PHONY : engine/src/core/assets.c.i
+
+engine/src/core/assets.s: engine/src/core/assets.c.s
+.PHONY : engine/src/core/assets.s
+
+# target to generate assembly for a file
+engine/src/core/assets.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/assets.c.s
+.PHONY : engine/src/core/assets.c.s
 
 engine/src/core/core.o: engine/src/core/core.c.o
 .PHONY : engine/src/core/core.o
@@ -762,9 +810,15 @@ help:
 	@echo "... benchmarks/bench_core.o"
 	@echo "... benchmarks/bench_core.i"
 	@echo "... benchmarks/bench_core.s"
+	@echo "... engine/src/core/adaptive.o"
+	@echo "... engine/src/core/adaptive.i"
+	@echo "... engine/src/core/adaptive.s"
 	@echo "... engine/src/core/animation.o"
 	@echo "... engine/src/core/animation.i"
 	@echo "... engine/src/core/animation.s"
+	@echo "... engine/src/core/assets.o"
+	@echo "... engine/src/core/assets.i"
+	@echo "... engine/src/core/assets.s"
 	@echo "... engine/src/core/core.o"
 	@echo "... engine/src/core/core.i"
 	@echo "... engine/src/core/core.s"

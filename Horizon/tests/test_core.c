@@ -10,7 +10,8 @@
 #include "horizon/textures.h"
 #include "horizon/physics.h"
 #include "horizon/animation.h"
-#include "horizon/animation.h"
+#include "horizon/assets.h"
+#include "horizon/adaptive.h"
 
 #include <stdatomic.h>
 
@@ -481,6 +482,72 @@ static void test_animation(void) {
     hr_animation_clip_destroy(run);
 }
 
+static void test_assets(void) {
+    HrMeshData mesh;
+    hr_mesh_init(&mesh, "cube");
+    hr_mesh_box(&mesh, v3(0, 0, 0), v3s(1));
+    hr_mesh_finalize(&mesh);
+    void* blob = NULL; usize blob_size = 0;
+    CHECK(hr_mesh_serialize(&mesh, &blob, &blob_size));
+    CHECK(blob && blob_size > 0);
+    HrMeshData restored;
+    CHECK(hr_mesh_deserialize(blob, blob_size, &restored));
+    CHECK(restored.vertex_count == mesh.vertex_count);
+    CHECK(restored.index_count == mesh.index_count);
+    CHECK_NEAR(restored.bounds_radius, mesh.bounds_radius, 1e-4f);
+    hr_mesh_free(&restored);
+    hr_free(blob);
+    hr_mesh_free(&mesh);
+
+    HrAssetPack pack;
+    CHECK(hr_asset_pack_begin(&pack));
+    const char* payload = "hello asset";
+    CHECK(hr_asset_pack_add(&pack, HR_ASSET_BLOB, "greeting", payload, strlen(payload) + 1));
+    CHECK(hr_asset_pack_add(&pack, HR_ASSET_BLOB, "numbers", "1234", 5));
+    const char* path = "/tmp/horizon_test_assets.hras";
+    CHECK(hr_asset_pack_write(&pack, path));
+    hr_asset_pack_free(&pack);
+
+    HrAssetPack loaded;
+    CHECK(hr_asset_pack_open(&loaded, path));
+    CHECK(loaded.entry_count == 2);
+    const HrAssetEntry* e = hr_asset_pack_find(&loaded, "greeting");
+    CHECK(e != NULL);
+    usize sz = 0;
+    const void* data = hr_asset_pack_data(&loaded, e, &sz);
+    CHECK(data && sz == strlen(payload) + 1);
+    CHECK(memcmp(data, payload, sz) == 0);
+    CHECK(hr_asset_pack_find(&loaded, "missing") == NULL);
+    hr_asset_pack_free(&loaded);
+
+    HrJobSystem* js = NULL;
+    CHECK(hr_jobs_init(&js, 1));
+    HrAsyncAsset async;
+    hr_asset_async_init(&async, path);
+    CHECK(hr_asset_async_submit(&async, js));
+    hr_jobs_wait_idle(js);
+    CHECK(hr_asset_async_state(&async) == HR_ASSET_LOAD_READY);
+    void* adata = NULL; usize asz = 0;
+    CHECK(hr_asset_async_take(&async, &adata, &asz));
+    CHECK(adata && asz > 0);
+    hr_free(adata);
+    hr_asset_async_destroy(&async);
+    hr_jobs_shutdown(js);
+}
+
+static void test_adaptive(void) {
+    HrAdaptiveConfig cfg;
+    hr_adaptive_default_config(&cfg);
+    cfg.cooldown_frames = 0;
+    HrAdaptiveState s;
+    hr_adaptive_init(&s, &cfg, 1.0f, 2048);
+    for (int i = 0; i < 10; ++i) hr_adaptive_update(&s, 30.0f);
+    CHECK(s.render_scale < 1.0f || s.shadow_resolution < 2048);
+    hr_adaptive_reset(&s, 0.5f, 1024);
+    for (int i = 0; i < 40; ++i) hr_adaptive_update(&s, 8.0f);
+    CHECK(s.render_scale > 0.5f || s.shadow_resolution > 1024);
+}
+
 static void test_profiler(void) {
     hr_prof_enabled = 1;
     hr_prof_frame_begin();
@@ -503,6 +570,8 @@ int main(void) {
     test_textures();
     test_physics();
     test_animation();
+    test_assets();
+    test_adaptive();
     test_profiler();
 
     printf("%d checks, %d failures\n", g_checks, g_failures);

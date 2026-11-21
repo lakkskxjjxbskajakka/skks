@@ -1,6 +1,10 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/horizon.dir/engine/src/core/adaptive.c.o"
+  "CMakeFiles/horizon.dir/engine/src/core/adaptive.c.o.d"
   "CMakeFiles/horizon.dir/engine/src/core/animation.c.o"
   "CMakeFiles/horizon.dir/engine/src/core/animation.c.o.d"
+  "CMakeFiles/horizon.dir/engine/src/core/assets.c.o"
+  "CMakeFiles/horizon.dir/engine/src/core/assets.c.o.d"
   "CMakeFiles/horizon.dir/engine/src/core/core.c.o"
   "CMakeFiles/horizon.dir/engine/src/core/core.c.o.d"
   "CMakeFiles/horizon.dir/engine/src/core/ecs.c.o"

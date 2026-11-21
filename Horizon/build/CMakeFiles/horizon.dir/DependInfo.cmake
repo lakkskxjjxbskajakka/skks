@@ -8,7 +8,9 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/home/runner/work/skks/skks/Horizon/engine/src/core/adaptive.c" "CMakeFiles/horizon.dir/engine/src/core/adaptive.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/adaptive.c.o.d"
   "/home/runner/work/skks/skks/Horizon/engine/src/core/animation.c" "CMakeFiles/horizon.dir/engine/src/core/animation.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/animation.c.o.d"
+  "/home/runner/work/skks/skks/Horizon/engine/src/core/assets.c" "CMakeFiles/horizon.dir/engine/src/core/assets.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/assets.c.o.d"
   "/home/runner/work/skks/skks/Horizon/engine/src/core/core.c" "CMakeFiles/horizon.dir/engine/src/core/core.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/core.c.o.d"
   "/home/runner/work/skks/skks/Horizon/engine/src/core/ecs.c" "CMakeFiles/horizon.dir/engine/src/core/ecs.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/ecs.c.o.d"
   "/home/runner/work/skks/skks/Horizon/engine/src/core/jobs.c" "CMakeFiles/horizon.dir/engine/src/core/jobs.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/jobs.c.o.d"

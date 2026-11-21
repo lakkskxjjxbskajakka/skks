@@ -3,7 +3,9 @@
 
 CMakeFiles/horizon_tests.dir/tests/test_core.c.o
  /home/runner/work/skks/skks/Horizon/tests/test_core.c
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/adaptive.h
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/animation.h
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/assets.h
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/containers.h
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/core.h
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/ecs.h

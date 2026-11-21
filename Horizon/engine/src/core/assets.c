@@ -68,20 +68,20 @@ bool hr_asset_pack_begin(HrAssetPack* pack) {
     memset(pack, 0, sizeof(*pack));
     HrPackBuilder* b = (HrPackBuilder*)hr_calloc(1, sizeof(HrPackBuilder));
     if (!b) return false;
-    /* reserve string table offset 0 as empty sentinel */
     buf_grow_char(&b->strings, &b->strings_cap, 1);
     b->strings[0] = '\0';
     b->strings_len = 1;
     pack->data = (u8*)b;
     pack->owns_data = true;
+    pack->building = true;
     return true;
 }
 
 bool hr_asset_pack_add(HrAssetPack* pack, HrAssetType type, const char* name,
                        const void* data, usize size) {
-    if (!pack || !name) return false;
+    if (!pack || !name || !pack->building) return false;
     HrPackBuilder* b = builder_get(pack);
-    if (!b || pack->entry_count == 0xffffffffu) return false;
+    if (!b) return false;
 
     if (b->count >= b->cap) {
         u32 ncap = b->cap ? b->cap * 2u : 8u;
@@ -116,7 +116,7 @@ bool hr_asset_pack_add(HrAssetPack* pack, HrAssetType type, const char* name,
 }
 
 bool hr_asset_pack_write(const HrAssetPack* pack, const char* path) {
-    if (!pack || !path) return false;
+    if (!pack || !path || !pack->building) return false;
     const HrPackBuilder* b = (const HrPackBuilder*)pack->data;
     if (!b) return false;
 
@@ -130,11 +130,19 @@ bool hr_asset_pack_write(const HrAssetPack* pack, const char* path) {
     h.data_offset = HR_ALIGN_UP((usize)h.strings_offset + b->strings_len, 16);
     h.total_size = (u64)h.data_offset + (u64)b->data_len;
 
+    HrAssetEntry* toc = NULL;
+    if (b->count > 0) {
+        toc = (HrAssetEntry*)hr_alloc(sizeof(HrAssetEntry) * b->count);
+        if (!toc) return false;
+        memcpy(toc, b->entries, sizeof(HrAssetEntry) * b->count);
+        for (u32 i = 0; i < b->count; ++i) toc[i].data_offset += h.data_offset;
+    }
+
     FILE* f = fopen(path, "wb");
-    if (!f) return false;
+    if (!f) { hr_free(toc); return false; }
     bool ok = true;
     ok = ok && fwrite(&h, sizeof(h), 1, f) == 1;
-    if (b->count > 0) ok = ok && fwrite(b->entries, sizeof(HrAssetEntry), b->count, f) == b->count;
+    if (b->count > 0) ok = ok && fwrite(toc, sizeof(HrAssetEntry), b->count, f) == b->count;
     if (b->strings_len > 0) ok = ok && fwrite(b->strings, 1, b->strings_len, f) == b->strings_len;
     usize pad = (usize)h.data_offset - ((usize)h.strings_offset + b->strings_len);
     if (pad > 0) {
@@ -143,6 +151,7 @@ bool hr_asset_pack_write(const HrAssetPack* pack, const char* path) {
     }
     if (b->data_len > 0) ok = ok && fwrite(b->data, 1, b->data_len, f) == b->data_len;
     fclose(f);
+    hr_free(toc);
     return ok;
 }
 
@@ -156,14 +165,10 @@ static void builder_free(HrPackBuilder* b) {
 
 void hr_asset_pack_free(HrAssetPack* pack) {
     if (!pack) return;
-    if (pack->owns_data) {
-        /* could be builder or loaded buffer; distinguish by entries pointer being inside? */
-        /* builder stores HrPackBuilder* in pack->data and owns_data true, entries==NULL */
-        if (pack->entries == NULL && pack->data != NULL) {
-            builder_free((HrPackBuilder*)pack->data);
-        } else {
-            hr_free(pack->data);
-        }
+    if (pack->building) {
+        builder_free((HrPackBuilder*)pack->data);
+    } else if (pack->owns_data) {
+        hr_free(pack->data);
     }
     hr_free(pack->entries);
     hr_free(pack->strings);

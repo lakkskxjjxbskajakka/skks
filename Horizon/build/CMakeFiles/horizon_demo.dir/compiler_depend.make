@@ -7,6 +7,7 @@ CMakeFiles/horizon_demo.dir/game/src/car.c.o: /home/runner/work/skks/skks/Horizo
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/math.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/memory.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/mesh.h \
+  /home/runner/work/skks/skks/Horizon/engine/include/horizon/physics.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/platform.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/renderer.h \
   /home/runner/work/skks/skks/Horizon/game/src/world.h \
@@ -67,6 +68,7 @@ CMakeFiles/horizon_demo.dir/game/src/car.c.o: /home/runner/work/skks/skks/Horizo
   /usr/lib/gcc/x86_64-linux-gnu/15/include/stdint.h
 
 CMakeFiles/horizon_demo.dir/game/src/demo.c.o: /home/runner/work/skks/skks/Horizon/game/src/demo.c \
+  /home/runner/work/skks/skks/Horizon/engine/include/horizon/adaptive.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/core.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/jobs.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/math.h \
@@ -149,6 +151,7 @@ CMakeFiles/horizon_demo.dir/game/src/world.c.o: /home/runner/work/skks/skks/Hori
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/math.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/memory.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/mesh.h \
+  /home/runner/work/skks/skks/Horizon/engine/include/horizon/physics.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/platform.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/renderer.h \
   /home/runner/work/skks/skks/Horizon/game/src/world.h \
@@ -214,6 +217,7 @@ CMakeFiles/horizon_demo.dir/game/src/world_mesh.c.o: /home/runner/work/skks/skks
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/math.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/memory.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/mesh.h \
+  /home/runner/work/skks/skks/Horizon/engine/include/horizon/physics.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/platform.h \
   /home/runner/work/skks/skks/Horizon/engine/include/horizon/renderer.h \
   /home/runner/work/skks/skks/Horizon/game/src/world.h \
@@ -336,7 +340,13 @@ CMakeFiles/horizon_demo.dir/game/src/car.c.o:
 
 /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h:
 
+/usr/include/x86_64-linux-gnu/sys/stat.h:
+
+/usr/include/string.h:
+
 /usr/include/x86_64-linux-gnu/bits/mathcalls-macros.h:
+
+/home/runner/work/skks/skks/Horizon/engine/include/horizon/adaptive.h:
 
 /usr/include/x86_64-linux-gnu/bits/mathcalls.h:
 
@@ -358,12 +368,6 @@ CMakeFiles/horizon_demo.dir/game/src/car.c.o:
 
 /usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h:
 
-/usr/include/x86_64-linux-gnu/bits/libc-header-start.h:
-
-/usr/include/stdlib.h:
-
-/usr/include/x86_64-linux-gnu/bits/types.h:
-
 /home/runner/work/skks/skks/Horizon/engine/include/horizon/core.h:
 
 /usr/include/x86_64-linux-gnu/asm/errno.h:
@@ -377,6 +381,18 @@ CMakeFiles/horizon_demo.dir/game/src/car.c.o:
 /usr/lib/x86_64-linux-gnu/libXau.so.6:
 
 /usr/include/x86_64-linux-gnu/bits/stdint-intn.h:
+
+/usr/include/x86_64-linux-gnu/bits/libc-header-start.h:
+
+/usr/include/stdlib.h:
+
+/usr/include/x86_64-linux-gnu/bits/types.h:
+
+/home/runner/work/skks/skks/Horizon/engine/include/horizon/physics.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
+
+/home/runner/work/skks/skks/Horizon/game/src/world.h:
 
 /home/runner/work/skks/skks/Horizon/game/src/world.c:
 
@@ -399,8 +415,6 @@ CMakeFiles/horizon_demo.dir/game/src/car.c.o:
 /usr/include/x86_64-linux-gnu/bits/stdlib.h:
 
 /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h:
-
-/home/runner/work/skks/skks/Horizon/game/src/world.h:
 
 /home/runner/work/skks/skks/Horizon/game/src/world_internal.h:
 
@@ -446,10 +460,6 @@ CMakeFiles/horizon_demo.dir/game/src/car.c.o:
 
 /usr/include/x86_64-linux-gnu/bits/timesize.h:
 
-/usr/include/string.h:
-
-/usr/include/x86_64-linux-gnu/sys/stat.h:
-
 /usr/include/x86_64-linux-gnu/bits/types/FILE.h:
 
 /usr/include/features.h:
@@ -488,15 +498,23 @@ CMakeFiles/horizon_demo.dir/game/src/car.c.o:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/stdarg.h:
 
-/usr/include/x86_64-linux-gnu/bits/stdio2.h:
-
 /usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h:
+
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/stddef.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/stdint.h:
 
 /home/runner/work/skks/skks/Horizon/game/src/demo.c:
+
+/usr/include/x86_64-linux-gnu/bits/types/time_t.h:
+
+/usr/include/x86_64-linux-gnu/bits/endian.h:
+
+/usr/include/x86_64-linux-gnu/bits/wchar.h:
+
+/usr/include/asm-generic/errno-base.h:
 
 /usr/include/asm-generic/errno.h:
 
@@ -505,13 +523,3 @@ CMakeFiles/horizon_demo.dir/game/src/car.c.o:
 /usr/include/x86_64-linux-gnu/bits/errno.h:
 
 /usr/include/x86_64-linux-gnu/bits/stat.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
-
-/usr/include/x86_64-linux-gnu/bits/endian.h:
-
-/usr/include/x86_64-linux-gnu/bits/wchar.h:
-
-/usr/include/asm-generic/errno-base.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/time_t.h:
