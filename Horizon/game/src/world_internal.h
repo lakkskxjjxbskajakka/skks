@@ -40,7 +40,7 @@ typedef struct HrPostInstance {
     float rotation;
 } HrPostInstance;
 
-struct HrWorld {
+struct HrGameWorld {
     HrRenderer* renderer;
     HrJobSystem* jobs;
 
@@ -108,14 +108,14 @@ struct HrWorld {
 };
 
 /* world_mesh.c */
-void hr_world_build_environment(HrWorld* w);
-float hr_ground_height(HrWorld* w, float x, float z);
-int hr_road_nearest(HrWorld* w, float x, float z, float* out_distance);
-Vec3 hr_road_point(const HrWorld* w, float t);
+void hr_game_world_build_environment(HrGameWorld* w);
+float hr_ground_height(HrGameWorld* w, float x, float z);
+int hr_road_nearest(HrGameWorld* w, float x, float z, float* out_distance);
+Vec3 hr_road_point(const HrGameWorld* w, float t);
 
 /* car.c */
-void hr_world_build_car(HrWorld* w);
-void hr_world_draw_car(HrWorld* w, HrRenderer* r);
-Mat4 hr_car_transform(const HrWorld* w);
+void hr_game_world_build_car(HrGameWorld* w);
+void hr_game_world_draw_car(HrGameWorld* w, HrRenderer* r);
+Mat4 hr_car_transform(const HrGameWorld* w);
 
 #endif /* HORIZON_WORLD_INTERNAL_H */

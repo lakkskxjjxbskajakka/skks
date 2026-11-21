@@ -6,8 +6,9 @@ layout(location = 0) out vec4 out_color;
 layout(set = 0, binding = 0) uniform Globals {
     mat4 view_proj;
     mat4 inv_view_proj;
-    mat4 light_view_proj;
+    mat4 light_view_proj[4];
     vec4 cam_pos_time;
+    vec4 cam_forward;
     vec4 sun_dir_intensity;
     vec4 sun_color_exposure;
     vec4 ambient_sky;
@@ -15,6 +16,7 @@ layout(set = 0, binding = 0) uniform Globals {
     vec4 fog_color_density;
     vec4 screen;
     vec4 shadow_params;
+    vec4 cascade_splits;
     vec4 misc;
 } g;
 

@@ -112,5 +112,17 @@
   "command": "/usr/bin/cc -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon_demo.dir/game/src/car.c.o -c /home/runner/work/skks/skks/Horizon/game/src/car.c",
   "file": "/home/runner/work/skks/skks/Horizon/game/src/car.c",
   "output": "CMakeFiles/horizon_demo.dir/game/src/car.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon_tests.dir/tests/test_core.c.o -c /home/runner/work/skks/skks/Horizon/tests/test_core.c",
+  "file": "/home/runner/work/skks/skks/Horizon/tests/test_core.c",
+  "output": "CMakeFiles/horizon_tests.dir/tests/test_core.c.o"
+},
+{
+  "directory": "/home/runner/work/skks/skks/Horizon/build",
+  "command": "/usr/bin/cc -D_POSIX_C_SOURCE=200809L -I/home/runner/work/skks/skks/Horizon/engine/include -I/home/runner/work/skks/skks/Horizon/build/generated -O3 -DNDEBUG -std=c17 -Wall -Wextra -Wshadow -Wconversion -Wno-sign-conversion -Wno-unused-parameter -Wno-missing-braces -Wno-missing-field-initializers -o CMakeFiles/horizon_bench.dir/benchmarks/bench_core.c.o -c /home/runner/work/skks/skks/Horizon/benchmarks/bench_core.c",
+  "file": "/home/runner/work/skks/skks/Horizon/benchmarks/bench_core.c",
+  "output": "CMakeFiles/horizon_bench.dir/benchmarks/bench_core.c.o"
 }
 ]

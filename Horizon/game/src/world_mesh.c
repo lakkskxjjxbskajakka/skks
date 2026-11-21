@@ -38,7 +38,7 @@ static float terrain_raw_height(float x, float z) {
     return base + mountain;
 }
 
-int hr_road_nearest(HrWorld* w, float x, float z, float* out_distance) {
+int hr_road_nearest(HrGameWorld* w, float x, float z, float* out_distance) {
     int best = 0;
     float best_d = 1e30f;
     for (int i = 0; i < w->road_count; ++i) {
@@ -51,7 +51,7 @@ int hr_road_nearest(HrWorld* w, float x, float z, float* out_distance) {
     return best;
 }
 
-float hr_ground_height(HrWorld* w, float x, float z) {
+float hr_ground_height(HrGameWorld* w, float x, float z) {
     float h = terrain_raw_height(x, z);
     float d = 0.0f;
     int idx = hr_road_nearest(w, x, z, &d);
@@ -62,14 +62,14 @@ float hr_ground_height(HrWorld* w, float x, float z) {
     return h;
 }
 
-Vec3 hr_road_point(const HrWorld* w, float t) {
+Vec3 hr_road_point(const HrGameWorld* w, float t) {
     float f = t - floorf(t);
     int idx = (int)(f * (float)w->road_count) % w->road_count;
     if (idx < 0) idx += w->road_count;
     return w->road[idx].pos;
 }
 
-static void build_road_samples(HrWorld* w) {
+static void build_road_samples(HrGameWorld* w) {
     const int n = HR_ROAD_SAMPLES;
     const int nc = HR_ARRAY_COUNT(k_track_control);
     w->road = (HrRoadSample*)hr_calloc((usize)n, sizeof(HrRoadSample));
@@ -113,7 +113,7 @@ static void build_road_samples(HrWorld* w) {
 }
 
 typedef struct TerrainJobArg {
-    HrWorld* w;
+    HrGameWorld* w;
     HrMeshData* mesh;
     int segments;
     float size;
@@ -137,7 +137,7 @@ static void terrain_row_job(void* arg_ptr, u32 begin, u32 end) {
     }
 }
 
-static void build_terrain(HrWorld* w, HrMeshData* mesh) {
+static void build_terrain(HrGameWorld* w, HrMeshData* mesh) {
     const int seg = HR_TERRAIN_SEGMENTS;
     const u32 verts = (u32)(seg + 1) * (u32)(seg + 1);
     const u32 quads = (u32)seg * (u32)seg;
@@ -170,7 +170,7 @@ static void build_terrain(HrWorld* w, HrMeshData* mesh) {
     hr_mesh_free(mesh);
 }
 
-static void build_road_mesh(HrWorld* w) {
+static void build_road_mesh(HrGameWorld* w) {
     HrMeshData road, shoulder;
     hr_mesh_init(&road, "road");
     hr_mesh_init(&shoulder, "shoulder");
@@ -231,7 +231,7 @@ static void cone_mesh(HrMeshData* m, float base_y, float radius, float height, i
     }
 }
 
-static void build_vegetation_meshes(HrWorld* w) {
+static void build_vegetation_meshes(HrGameWorld* w) {
     HrMeshData trunk, pine, leaf;
     hr_mesh_init(&trunk, "trunk");
     hr_mesh_cylinder(&trunk, v3(0, 0, 0), 0.24f, 2.8f, 7, true);
@@ -260,7 +260,7 @@ static void build_vegetation_meshes(HrWorld* w) {
     hr_mesh_free(&leaf);
 }
 
-static void build_rock_mesh(HrWorld* w) {
+static void build_rock_mesh(HrGameWorld* w) {
     HrMeshData rock;
     hr_mesh_init(&rock, "rock");
     hr_mesh_uv_sphere(&rock, v3(0, 0.35f, 0), 1.0f, 5, 7);
@@ -285,7 +285,7 @@ static void build_rock_mesh(HrWorld* w) {
     hr_mesh_free(&post);
 }
 
-static void place_props(HrWorld* w) {
+static void place_props(HrGameWorld* w) {
     const int target_trees = 880;
     const int target_rocks = 120;
     w->trees = (HrTreeInstance*)hr_calloc((usize)target_trees, sizeof(HrTreeInstance));
@@ -355,7 +355,7 @@ static void place_props(HrWorld* w) {
     w->post_count = pc;
 }
 
-void hr_world_build_environment(HrWorld* w) {
+void hr_game_world_build_environment(HrGameWorld* w) {
     build_road_samples(w);
 
     HrMeshData terrain;

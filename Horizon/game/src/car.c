@@ -152,14 +152,14 @@ static void wheel_rim(HrMeshData* m, float inner, float width) {
     }
 }
 
-static int upload(HrWorld* w, HrMeshData* m, const char* name) {
+static int upload(HrGameWorld* w, HrMeshData* m, const char* name) {
     hr_mesh_finalize(m);
     int id = hr_renderer_upload_mesh(w->renderer, m, name);
     hr_mesh_free(m);
     return id;
 }
 
-void hr_world_build_car(HrWorld* w) {
+void hr_game_world_build_car(HrGameWorld* w) {
     static const LoftSection body[] = {
         {-2.16f, 0.76f, 0.34f, 0.68f},
         {-1.96f, 0.93f, 0.30f, 0.79f},
@@ -239,13 +239,13 @@ void hr_world_build_car(HrWorld* w) {
     w->mesh_car_rim = upload(w, &m, "car_rim");
 }
 
-Mat4 hr_car_transform(const HrWorld* w) {
+Mat4 hr_car_transform(const HrGameWorld* w) {
     Vec3 euler = v3(w->car_pitch, w->car_yaw, w->car_roll);
     return mat4_compose(v3(w->car_pos.x, w->car_y + w->car_bob, w->car_pos.z),
                         quat_from_euler(euler), v3s(1.0f));
 }
 
-void hr_world_draw_car(HrWorld* w, HrRenderer* r) {
+void hr_game_world_draw_car(HrGameWorld* w, HrRenderer* r) {
     Mat4 car = hr_car_transform(w);
     Vec4 paint = v4(0.88f, 0.08f, 0.05f, 1.0f);
     Vec4 glass = v4(0.035f, 0.045f, 0.06f, 1.0f);

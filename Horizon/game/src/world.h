@@ -5,30 +5,30 @@
 #include "horizon/renderer.h"
 #include "horizon/jobs.h"
 
-typedef struct HrWorld HrWorld;
+typedef struct HrGameWorld HrGameWorld;
 
-typedef struct HrWorldInput {
+typedef struct HrGameWorldInput {
     float throttle;   /* -1 reverse .. 1 forward */
     float steer;      /* -1 left .. 1 right */
     float brake;      /* 0 .. 1 */
     bool handbrake;
     bool boost;
     bool autopilot;
-} HrWorldInput;
+} HrGameWorldInput;
 
-bool hr_world_create(HrWorld** out, HrRenderer* r, HrJobSystem* js);
-void hr_world_destroy(HrWorld* w);
-void hr_world_reset(HrWorld* w);
-void hr_world_update(HrWorld* w, float dt, const HrWorldInput* input);
-void hr_world_render(HrWorld* w);
+bool hr_game_world_create(HrGameWorld** out, HrRenderer* r, HrJobSystem* js);
+void hr_game_world_destroy(HrGameWorld* w);
+void hr_game_world_reset(HrGameWorld* w);
+void hr_game_world_update(HrGameWorld* w, float dt, const HrGameWorldInput* input);
+void hr_game_world_render(HrGameWorld* w);
 
 /* Fills the per-frame renderer description with camera, sun and atmosphere. */
-void hr_world_describe_frame(HrWorld* w, HrFrameDesc* frame, float render_scale, float time);
+void hr_game_world_describe_frame(HrGameWorld* w, HrFrameDesc* frame, float render_scale, float time);
 
-float hr_world_speed_kph(const HrWorld* w);
-float hr_world_distance(const HrWorld* w);
-Vec3  hr_world_car_position(const HrWorld* w);
-float hr_world_progress(const HrWorld* w);
-const char* hr_world_area(const HrWorld* w);
+float hr_game_world_speed_kph(const HrGameWorld* w);
+float hr_game_world_distance(const HrGameWorld* w);
+Vec3  hr_game_world_car_position(const HrGameWorld* w);
+float hr_game_world_progress(const HrGameWorld* w);
+const char* hr_game_world_area(const HrGameWorld* w);
 
 #endif /* HORIZON_WORLD_H */

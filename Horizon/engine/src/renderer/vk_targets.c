@@ -243,7 +243,10 @@ void hr_vk_destroy_targets(HrRenderer* r, HrTargets* t) {
     if (t->bloom_a_fb) vkDestroyFramebuffer(r->device, t->bloom_a_fb, NULL);
     if (t->bloom_b_fb) vkDestroyFramebuffer(r->device, t->bloom_b_fb, NULL);
     if (t->ldr_fb) vkDestroyFramebuffer(r->device, t->ldr_fb, NULL);
-    if (t->shadow_fb) vkDestroyFramebuffer(r->device, t->shadow_fb, NULL);
+    for (u32 i = 0; i < HR_CASCADE_COUNT; ++i) {
+        if (t->shadow_fbs[i]) vkDestroyFramebuffer(r->device, t->shadow_fbs[i], NULL);
+        if (t->shadow_layer_views[i]) vkDestroyImageView(r->device, t->shadow_layer_views[i], NULL);
+    }
     if (t->hdr_view) vkDestroyImageView(r->device, t->hdr_view, NULL);
     if (t->depth_view) vkDestroyImageView(r->device, t->depth_view, NULL);
     if (t->bloom_a_view) vkDestroyImageView(r->device, t->bloom_a_view, NULL);
@@ -283,7 +286,7 @@ void hr_vk_create_targets(HrRenderer* r, HrTargets* t, u32 hdr_w, u32 hdr_h, u32
     hr_vk_create_image(r, &t->ldr, &t->ldr_mem, t->ldr_width, t->ldr_height, 1, 1,
                        r->swap_format,
                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
-    hr_vk_create_image(r, &t->shadow, &t->shadow_mem, shadow_size, shadow_size, 1, 1,
+    hr_vk_create_image(r, &t->shadow, &t->shadow_mem, shadow_size, shadow_size, 1, HR_CASCADE_COUNT,
                        VK_FORMAT_D32_SFLOAT,
                        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
@@ -298,7 +301,11 @@ void hr_vk_create_targets(HrRenderer* r, HrTargets* t, u32 hdr_w, u32 hdr_h, u32
     t->ldr_view = hr_vk_create_view(r, t->ldr, r->swap_format,
                                     VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, VK_IMAGE_VIEW_TYPE_2D);
     t->shadow_view = hr_vk_create_view(r, t->shadow, VK_FORMAT_D32_SFLOAT,
-                                       VK_IMAGE_ASPECT_DEPTH_BIT, 1, 1, VK_IMAGE_VIEW_TYPE_2D);
+                                       VK_IMAGE_ASPECT_DEPTH_BIT, 1, HR_CASCADE_COUNT,
+                                       VK_IMAGE_VIEW_TYPE_2D_ARRAY);
+    for (u32 i = 0; i < HR_CASCADE_COUNT; ++i)
+        t->shadow_layer_views[i] = hr_vk_create_view_layer(r, t->shadow, VK_FORMAT_D32_SFLOAT,
+                                                           VK_IMAGE_ASPECT_DEPTH_BIT, i);
 
     VkImageView attachments[2] = { t->hdr_view, t->depth_view };
     VkFramebufferCreateInfo fi = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
@@ -328,8 +335,11 @@ void hr_vk_create_targets(HrRenderer* r, HrTargets* t, u32 hdr_w, u32 hdr_h, u32
     fi.renderPass = r->shadow_rp;
     fi.width = shadow_size;
     fi.height = shadow_size;
-    fi.pAttachments = &t->shadow_view;
-    VK_CHECK(vkCreateFramebuffer(r->device, &fi, NULL, &t->shadow_fb));
+    fi.layers = 1;
+    for (u32 i = 0; i < HR_CASCADE_COUNT; ++i) {
+        fi.pAttachments = &t->shadow_layer_views[i];
+        VK_CHECK(vkCreateFramebuffer(r->device, &fi, NULL, &t->shadow_fbs[i]));
+    }
 
     t->capture = hr_vk_create_buffer(r, (VkDeviceSize)t->ldr_width * t->ldr_height * 4u,
                                      VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -339,7 +349,7 @@ void hr_vk_create_targets(HrRenderer* r, HrTargets* t, u32 hdr_w, u32 hdr_h, u32
 
 void hr_vk_update_frame_descriptors(HrRenderer* r, HrFrameRes* f, HrTargets* t) {
     VkDescriptorBufferInfo ubo = { f->ubo, 0, sizeof(HrGlobals) };
-    VkDescriptorImageInfo shadow = { r->tex_albedo[HR_TEX_ROCK].sampler, t->shadow_view,
+    VkDescriptorImageInfo shadow = { r->shadow_sampler, t->shadow_view,
                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
     VkWriteDescriptorSet w[2];
     memset(w, 0, sizeof(w));

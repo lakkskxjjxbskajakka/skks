@@ -9,8 +9,8 @@ static float wrap_angle(float a) {
     return a;
 }
 
-bool hr_world_create(HrWorld** out, HrRenderer* r, HrJobSystem* js) {
-    HrWorld* w = (HrWorld*)hr_calloc(1, sizeof(HrWorld));
+bool hr_game_world_create(HrGameWorld** out, HrRenderer* r, HrJobSystem* js) {
+    HrGameWorld* w = (HrGameWorld*)hr_calloc(1, sizeof(HrGameWorld));
     if (!w) return false;
     w->renderer = r;
     w->jobs = js;
@@ -23,14 +23,14 @@ bool hr_world_create(HrWorld** out, HrRenderer* r, HrJobSystem* js) {
     w->fog_density = 0.00155f;
     w->cam_fov = 58.0f;
 
-    hr_world_build_environment(w);
-    hr_world_build_car(w);
-    hr_world_reset(w);
+    hr_game_world_build_environment(w);
+    hr_game_world_build_car(w);
+    hr_game_world_reset(w);
     *out = w;
     return true;
 }
 
-void hr_world_destroy(HrWorld* w) {
+void hr_game_world_destroy(HrGameWorld* w) {
     if (!w) return;
     hr_free(w->road);
     hr_free(w->trees);
@@ -39,7 +39,7 @@ void hr_world_destroy(HrWorld* w) {
     hr_free(w);
 }
 
-void hr_world_reset(HrWorld* w) {
+void hr_game_world_reset(HrGameWorld* w) {
     if (!w || w->road_count == 0) return;
     const HrRoadSample* s = &w->road[0];
     w->car_pos = s->pos;
@@ -63,7 +63,7 @@ void hr_world_reset(HrWorld* w) {
     w->cam_shake = 0.0f;
 }
 
-static void autopilot(HrWorld* w, float* throttle, float* steer, float* brake) {
+static void autopilot(HrGameWorld* w, float* throttle, float* steer, float* brake) {
     float look_m = 12.0f + fabsf(w->car_speed) * 0.52f;
     float t = w->progress + look_m / HR_MAX(w->road_length, 1.0f);
     Vec3 target = hr_road_point(w, t);
@@ -88,7 +88,7 @@ static void autopilot(HrWorld* w, float* throttle, float* steer, float* brake) {
     else { *throttle = 0.35f; *brake = 0.0f; }
 }
 
-void hr_world_update(HrWorld* w, float dt, const HrWorldInput* input) {
+void hr_game_world_update(HrGameWorld* w, float dt, const HrGameWorldInput* input) {
     if (!w || dt <= 0.0f) return;
     dt = HR_MIN(dt, 0.05f);
     w->time += dt;
@@ -176,10 +176,10 @@ void hr_world_update(HrWorld* w, float dt, const HrWorldInput* input) {
     float fov_target = 57.0f + HR_CLAMP(speed_abs, 0.0f, 70.0f) * 0.22f;
     w->cam_fov = hr_damp(w->cam_fov, fov_target, 3.0f, dt);
 
-    if (w->car_pos.y > 500.0f || w->car_pos.y < -500.0f) hr_world_reset(w);
+    if (w->car_pos.y > 500.0f || w->car_pos.y < -500.0f) hr_game_world_reset(w);
 }
 
-void hr_world_render(HrWorld* w) {
+void hr_game_world_render(HrGameWorld* w) {
     HrRenderer* r = w->renderer;
     hr_renderer_draw(r, w->mesh_terrain, HR_MAT_TERRAIN, mat4_identity(), v4s(1));
     hr_renderer_draw(r, w->mesh_road, HR_MAT_ROAD, mat4_identity(), v4(0.60f, 0.60f, 0.64f, 1));
@@ -203,10 +203,10 @@ void hr_world_render(HrWorld* w) {
         Mat4 model = mat4_mul(mat4_translate(w->posts[i].pos), mat4_rotate_y(w->posts[i].rotation));
         hr_renderer_draw(r, w->mesh_post, HR_MAT_CONCRETE, model, v4(0.42f, 0.41f, 0.39f, 1));
     }
-    hr_world_draw_car(w, r);
+    hr_game_world_draw_car(w, r);
 }
 
-void hr_world_describe_frame(HrWorld* w, HrFrameDesc* f, float render_scale, float time) {
+void hr_game_world_describe_frame(HrGameWorld* w, HrFrameDesc* f, float render_scale, float time) {
     memset(f, 0, sizeof(*f));
     f->camera_position = w->cam_pos;
     f->camera_target = w->cam_target;
@@ -237,12 +237,12 @@ void hr_world_describe_frame(HrWorld* w, HrFrameDesc* f, float render_scale, flo
     f->grain = 0.010f;
 }
 
-float hr_world_speed_kph(const HrWorld* w) { return fabsf(w->car_speed) * 3.6f; }
-float hr_world_distance(const HrWorld* w) { return w->distance_traveled; }
-Vec3 hr_world_car_position(const HrWorld* w) { return w->car_pos; }
-float hr_world_progress(const HrWorld* w) { return w->progress; }
+float hr_game_world_speed_kph(const HrGameWorld* w) { return fabsf(w->car_speed) * 3.6f; }
+float hr_game_world_distance(const HrGameWorld* w) { return w->distance_traveled; }
+Vec3 hr_game_world_car_position(const HrGameWorld* w) { return w->car_pos; }
+float hr_game_world_progress(const HrGameWorld* w) { return w->progress; }
 
-const char* hr_world_area(const HrWorld* w) {
+const char* hr_game_world_area(const HrGameWorld* w) {
     float p = w->progress;
     if (p < 0.16f) return "Cypress Straight";
     if (p < 0.32f) return "Sunset Ridge";

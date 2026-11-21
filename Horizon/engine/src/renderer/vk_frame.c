@@ -176,6 +176,76 @@ static void ensure_targets(HrRenderer* r) {
     r->framebuffer_dirty = false;
 }
 
+static void compute_csm(const HrFrameDesc* frame, float aspect, u32 shadow_size,
+                        Mat4 out_vp[HR_CASCADE_COUNT], float out_splits[HR_CASCADE_COUNT],
+                        Vec3* out_forward, Vec3* out_light_dir) {
+    Vec3 cam = frame->camera_position;
+    Vec3 fwd = v3_norm(v3_sub(frame->camera_target, cam));
+    if (v3_len_sq(fwd) < 0.5f) fwd = v3(0, 0, -1);
+    Vec3 up_ref = v3_norm(frame->camera_up);
+    if (v3_len_sq(up_ref) < 0.5f) up_ref = v3(0, 1, 0);
+    Vec3 right = v3_norm(v3_cross(fwd, up_ref));
+    if (v3_len_sq(right) < 0.5f) right = v3(1, 0, 0);
+    Vec3 up = v3_cross(right, fwd);
+
+    Vec3 light = v3_norm(frame->sun_direction);
+    if (v3_len_sq(light) < 0.5f) light = v3_norm(v3(-0.4f, -0.75f, -0.5f));
+    Vec3 lup = fabsf(light.y) > 0.98f ? v3(0, 0, 1) : v3(0, 1, 0);
+    Mat4 lrot = mat4_look_at(v3(0, 0, 0), light, lup);
+
+    float near_plane = frame->near_plane > 0.0f ? frame->near_plane : 0.08f;
+    float far_plane = frame->far_plane > near_plane ? frame->far_plane : 1500.0f;
+    float shadow_dist = frame->shadow_distance > 5.0f ? frame->shadow_distance : 90.0f;
+    if (far_plane > shadow_dist) far_plane = shadow_dist;
+    if (far_plane <= near_plane) far_plane = near_plane + 1.0f;
+
+    float fovy = frame->fov_deg * HR_DEG2RAD;
+    float tan_y = tanf(HR_CLAMP(fovy, 0.1f, 2.8f) * 0.5f);
+    float tan_x = tan_y * aspect;
+    const float lambda = 0.82f;
+    float prev = near_plane;
+
+    for (u32 c = 0; c < HR_CASCADE_COUNT; ++c) {
+        float p = (float)(c + 1) / (float)HR_CASCADE_COUNT;
+        float log_split = near_plane * powf(far_plane / near_plane, p);
+        float uni_split = near_plane + (far_plane - near_plane) * p;
+        float split = lambda * log_split + (1.0f - lambda) * uni_split;
+        if (split <= prev) split = prev + 0.05f;
+        if (split > far_plane) split = far_plane;
+        out_splits[c] = split;
+
+        Vec3 lo = v3(1e30f, 1e30f, 1e30f), hi = v3(-1e30f, -1e30f, -1e30f);
+        for (u32 di = 0; di < 2; ++di) {
+            float d = di == 0 ? prev : split;
+            for (int sy = -1; sy <= 1; sy += 2) {
+                for (int sx = -1; sx <= 1; sx += 2) {
+                    Vec3 pnt = v3_add(cam, v3_scale(fwd, d));
+                    pnt = v3_add(pnt, v3_scale(right, (float)sx * tan_x * d));
+                    pnt = v3_add(pnt, v3_scale(up, (float)sy * tan_y * d));
+                    Vec3 lp = mat4_mul_point(lrot, pnt);
+                    lo = v3_min(lo, lp);
+                    hi = v3_max(hi, lp);
+                }
+            }
+        }
+        Vec3 center = v3_scale(v3_add(lo, hi), 0.5f);
+        float radius = HR_MAX(hi.x - lo.x, hi.y - lo.y) * 0.5f + 0.01f;
+        if (radius < 1.0f) radius = 1.0f;
+        float texel = 2.0f * radius / (float)shadow_size;
+        center.x = floorf(center.x / texel + 0.5f) * texel;
+        center.y = floorf(center.y / texel + 0.5f) * texel;
+
+        float near_d = HR_MAX(0.01f, -hi.z - 0.5f);
+        float far_d = HR_MAX(near_d + 1.0f, -lo.z + 0.5f);
+        Mat4 view = mat4_mul(mat4_translate(v3(-center.x, -center.y, 0.0f)), lrot);
+        Mat4 proj = mat4_ortho_vk(-radius, radius, -radius, radius, near_d, far_d);
+        out_vp[c] = mat4_mul(proj, view);
+        prev = split;
+    }
+    *out_forward = fwd;
+    *out_light_dir = light;
+}
+
 bool hr_renderer_begin_frame(HrRenderer* r, const HrFrameDesc* frame) {
     if (!r || !frame) return false;
     r->frame = *frame;
@@ -300,23 +370,20 @@ void hr_renderer_end_frame(HrRenderer* r) {
         r->triangle_count += (r->meshes[b->mesh].index_count / 3u) * b->instance_count;
     }
 
-    /* ---- globals ---- */
-    Vec3 sun = v3_norm(r->frame.sun_direction);
-    if (v3_len_sq(sun) < 0.5f) sun = v3_norm(v3(-0.4f, -0.75f, -0.5f));
-    Vec3 focus = r->frame.focus;
+    /* ---- globals / cascaded shadow matrices ---- */
+    Mat4 light_vps[HR_CASCADE_COUNT];
+    float splits[HR_CASCADE_COUNT];
+    Vec3 cam_fwd, sun;
+    compute_csm(&r->frame, aspect, t->shadow_size, light_vps, splits, &cam_fwd, &sun);
     float shadow_dist = r->frame.shadow_distance > 5.0f ? r->frame.shadow_distance : 90.0f;
-    Vec3 up_ref = fabsf(sun.y) > 0.98f ? v3(0, 0, 1) : v3(0, 1, 0);
-    Mat4 light_view = mat4_look_at(v3_add(focus, v3_scale(sun, -shadow_dist * 1.9f)), focus, up_ref);
-    float ext = shadow_dist;
-    Mat4 light_proj = mat4_ortho_vk(-ext, ext, -ext, ext, 1.0f, shadow_dist * 3.8f);
-    Mat4 light_vp = mat4_mul(light_proj, light_view);
 
     HrGlobals* g = (HrGlobals*)f->ubo_map;
     memset(g, 0, sizeof(*g));
     g->view_proj = vp;
     g->inv_view_proj = mat4_invert(vp);
-    g->light_view_proj = light_vp;
+    for (u32 c = 0; c < HR_CASCADE_COUNT; ++c) g->light_view_proj[c] = light_vps[c];
     g->cam_pos_time = v4_from3(r->frame.camera_position, r->frame.time);
+    g->cam_forward = v4_from3(cam_fwd, 0.0f);
     g->sun_dir_intensity = v4_from3(sun, r->frame.sun_intensity);
     g->sun_color_exposure = v4_from3(r->frame.sun_color, r->frame.exposure);
     g->ambient_sky = v4_from3(r->frame.ambient_sky, 0);
@@ -325,7 +392,8 @@ void hr_renderer_end_frame(HrRenderer* r) {
     g->screen = v4((float)t->hdr_width, (float)t->hdr_height,
                    1.0f / (float)t->hdr_width, 1.0f / (float)t->hdr_height);
     g->shadow_params = v4(1.0f / (float)t->shadow_size, shadow_dist,
-                          r->frame.shadows_enabled ? 1.0f : 0.0f, 0);
+                          r->frame.shadows_enabled ? 1.0f : 0.0f, (float)HR_CASCADE_COUNT);
+    g->cascade_splits = v4(splits[0], splits[1], splits[2], splits[3]);
     g->misc = v4(r->frame.time, 0, 0, 0);
 
     /* ---- record ---- */
@@ -343,7 +411,7 @@ void hr_renderer_end_frame(HrRenderer* r) {
     VkViewport vp_view = { 0, 0, 0, 0, 0, 1 };
     VkRect2D scissor;
 
-    /* ---- shadow pass ---- */
+    /* ---- cascaded shadow passes ---- */
     if (r->frame.shadows_enabled) {
         vp_view.width = (float)t->shadow_size;
         vp_view.height = (float)t->shadow_size;
@@ -356,31 +424,35 @@ void hr_renderer_end_frame(HrRenderer* r) {
         VkClearValue clears[1];
         clears[0].depthStencil.depth = 1.0f;
         clears[0].depthStencil.stencil = 0;
-        VkRenderPassBeginInfo rp = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
-        rp.renderPass = r->shadow_rp;
-        rp.framebuffer = t->shadow_fb;
-        rp.renderArea = scissor;
-        rp.clearValueCount = 1;
-        rp.pClearValues = clears;
-        vkCmdBeginRenderPass(cmd, &rp, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, r->shadow_pipeline);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, r->shadow_layout,
-                                0, 1, &f->global_set, 0, NULL);
-        for (usize batch_i = 0; batch_i < r->batches.len; ++batch_i) {
-            HrBatch* b = &r->batches.items[batch_i];
-            HrGpuMesh* mesh = &r->meshes[b->mesh];
-            VkBuffer vb[2] = { mesh->vbo.buffer, f->instances.buffer };
-            VkDeviceSize off[2] = { 0, 0 };
-            vkCmdBindVertexBuffers(cmd, 0, 2, vb, off);
-            vkCmdBindIndexBuffer(cmd, mesh->ibo.buffer, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdDrawIndexed(cmd, mesh->index_count, b->instance_count, 0, 0, b->first_instance);
+        for (u32 cascade = 0; cascade < HR_CASCADE_COUNT; ++cascade) {
+            VkRenderPassBeginInfo rp = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
+            rp.renderPass = r->shadow_rp;
+            rp.framebuffer = t->shadow_fbs[cascade];
+            rp.renderArea = scissor;
+            rp.clearValueCount = 1;
+            rp.pClearValues = clears;
+            vkCmdBeginRenderPass(cmd, &rp, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, r->shadow_pipeline);
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, r->shadow_layout,
+                                    0, 1, &f->global_set, 0, NULL);
+            vkCmdPushConstants(cmd, r->shadow_layout, VK_SHADER_STAGE_VERTEX_BIT,
+                               0, sizeof(cascade), &cascade);
+            for (usize batch_i = 0; batch_i < r->batches.len; ++batch_i) {
+                HrBatch* b = &r->batches.items[batch_i];
+                HrGpuMesh* mesh = &r->meshes[b->mesh];
+                VkBuffer vb[2] = { mesh->vbo.buffer, f->instances.buffer };
+                VkDeviceSize off[2] = { 0, 0 };
+                vkCmdBindVertexBuffers(cmd, 0, 2, vb, off);
+                vkCmdBindIndexBuffer(cmd, mesh->ibo.buffer, 0, VK_INDEX_TYPE_UINT32);
+                vkCmdDrawIndexed(cmd, mesh->index_count, b->instance_count, 0, 0, b->first_instance);
+            }
+            vkCmdEndRenderPass(cmd);
         }
-        vkCmdEndRenderPass(cmd);
         hr_vk_image_barrier(cmd, t->shadow, VK_IMAGE_ASPECT_DEPTH_BIT,
                             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                             VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
                             VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 1);
+                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, HR_CASCADE_COUNT);
     }
 
     /* ---- HDR pass: sky + scene ---- */

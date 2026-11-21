@@ -133,6 +133,22 @@ VkImageView hr_vk_create_view(HrRenderer* r, VkImage image, VkFormat format,
     return view;
 }
 
+VkImageView hr_vk_create_view_layer(HrRenderer* r, VkImage image, VkFormat format,
+                                    VkImageAspectFlags aspect, u32 layer) {
+    VkImageViewCreateInfo ci = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+    ci.image = image;
+    ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    ci.format = format;
+    ci.subresourceRange.aspectMask = aspect;
+    ci.subresourceRange.baseMipLevel = 0;
+    ci.subresourceRange.levelCount = 1;
+    ci.subresourceRange.baseArrayLayer = layer;
+    ci.subresourceRange.layerCount = 1;
+    VkImageView view;
+    VK_CHECK(vkCreateImageView(r->device, &ci, NULL, &view));
+    return view;
+}
+
 VkShaderModule hr_vk_load_shader(HrRenderer* r, const char* name) {
     const HrShaderBlob* blob = NULL;
     for (int i = 0; i < hr_shader_blob_count; ++i)

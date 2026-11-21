@@ -5,10 +5,12 @@
 typedef struct HrHeapHeader {
     u64 magic;
     usize size;
+    void* raw;
     usize pad;
 } HrHeapHeader;
 
 #define HR_HEAP_MAGIC 0x48525a4e4d454d31ull
+#define HR_HEAP_ALIGN 64u
 #define HR_HEAP_HDR ((usize)sizeof(HrHeapHeader))
 
 static _Atomic usize g_used = 0;
@@ -19,16 +21,20 @@ static void* heap_ptr_from_user(void* p) { return p ? (u8*)p - HR_HEAP_HDR : NUL
 
 void* hr_alloc(usize size) {
     if (!size) return NULL;
-    HrHeapHeader* h = (HrHeapHeader*)malloc(HR_HEAP_HDR + size);
-    if (!h) return NULL;
+    usize total = HR_HEAP_HDR + size + HR_HEAP_ALIGN;
+    u8* raw = (u8*)malloc(total);
+    if (!raw) return NULL;
+    u8* user = (u8*)HR_ALIGN_UP((usize)(raw + HR_HEAP_HDR), HR_HEAP_ALIGN);
+    HrHeapHeader* h = (HrHeapHeader*)(user - HR_HEAP_HDR);
     h->magic = HR_HEAP_MAGIC;
     h->size = size;
+    h->raw = raw;
     h->pad = 0;
     usize used = atomic_fetch_add_explicit(&g_used, size, memory_order_relaxed) + size;
     usize peak = atomic_load_explicit(&g_peak, memory_order_relaxed);
     while (used > peak && !atomic_compare_exchange_weak(&g_peak, &peak, used)) {}
     atomic_fetch_add_explicit(&g_allocs, 1, memory_order_relaxed);
-    return (u8*)h + HR_HEAP_HDR;
+    return user;
 }
 
 void* hr_calloc(usize count, usize size) {
@@ -47,7 +53,7 @@ void hr_free(void* ptr) {
     }
     h->magic = 0;
     atomic_fetch_sub_explicit(&g_used, h->size, memory_order_relaxed);
-    free(h);
+    free(h->raw);
 }
 
 void* hr_realloc(void* ptr, usize size) {
@@ -222,6 +228,8 @@ void* hr_freelist_alloc(HrFreeList* fl, usize size, usize align) {
             b->next = ab;
         } else {
             ab = b;
+            ab->free = 0;
+            ab->magic = HR_FL_MAGIC;
         }
         ab->size = need;
         if (remain) {

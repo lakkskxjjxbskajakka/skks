@@ -128,8 +128,8 @@ int main(int argc, char** argv) {
 
     HrJobSystem* jobs = NULL;
     hr_jobs_init(&jobs, 0);
-    HrWorld* world = NULL;
-    if (!hr_world_create(&world, renderer, jobs)) {
+    HrGameWorld* world = NULL;
+    if (!hr_game_world_create(&world, renderer, jobs)) {
         fprintf(stderr, "failed to build world\n");
         hr_jobs_shutdown(jobs);
         hr_renderer_shutdown(renderer);
@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
         if (hr_key_pressed(window, HR_KEY_ESCAPE)) break;
 
         if (hr_key_pressed(window, HR_KEY_F1)) opt.autopilot = !opt.autopilot;
-        if (hr_key_pressed(window, HR_KEY_R)) hr_world_reset(world);
+        if (hr_key_pressed(window, HR_KEY_R)) hr_game_world_reset(world);
         if (hr_key_pressed(window, HR_KEY_F12)) {
             snprintf(shot_path, sizeof(shot_path), "screenshots/horizon_%04llu.bmp",
                      (unsigned long long)frame);
@@ -183,7 +183,7 @@ int main(int argc, char** argv) {
         last_time = now;
         if (dt <= 0.0f) dt = fixed_dt;
 
-        HrWorldInput in;
+        HrGameWorldInput in;
         memset(&in, 0, sizeof(in));
         in.autopilot = opt.autopilot;
         if (!opt.autopilot) {
@@ -198,11 +198,11 @@ int main(int argc, char** argv) {
             in.handbrake = hr_key_down(window, HR_KEY_SPACE);
             in.boost = hr_key_down(window, HR_KEY_SHIFT);
         }
-        hr_world_update(world, dt, &in);
+        hr_game_world_update(world, dt, &in);
         sim_time += dt;
 
         HrFrameDesc fd;
-        hr_world_describe_frame(world, &fd, render_scale, (float)sim_time);
+        hr_game_world_describe_frame(world, &fd, render_scale, (float)sim_time);
         fd.shadow_resolution = shadow_res;
         fd.screenshot_path = NULL;
         if (manual_shot) {
@@ -217,7 +217,7 @@ int main(int argc, char** argv) {
         }
 
         if (hr_renderer_begin_frame(renderer, &fd)) {
-            hr_world_render(world);
+            hr_game_world_render(world);
             hr_renderer_end_frame(renderer);
         }
 
@@ -261,8 +261,8 @@ int main(int argc, char** argv) {
             double fps = st.cpu_frame_ms > 0.0 ? 1000.0 / st.cpu_frame_ms : 0.0;
             snprintf(title, sizeof(title),
                      "Horizon | %s | %.0f km/h | %s | %.0f fps | %u draws | scale %.2f",
-                     st.backend ? st.backend : "vk", hr_world_speed_kph(world),
-                     hr_world_area(world), fps, st.draw_calls, render_scale);
+                     st.backend ? st.backend : "vk", hr_game_world_speed_kph(world),
+                     hr_game_world_area(world), fps, st.draw_calls, render_scale);
             hr_window_set_title(window, title);
         }
 
@@ -271,7 +271,7 @@ int main(int argc, char** argv) {
 
         if (opt.frames == 0 && (frame % 600) == 0) {
             HR_INFO("demo", "%.0f fps avg, %.0f km/h, %u draws, %u instances",
-                    1000.0 / HR_MAX(ema_ms, 0.001f), hr_world_speed_kph(world),
+                    1000.0 / HR_MAX(ema_ms, 0.001f), hr_game_world_speed_kph(world),
                     st.draw_calls, st.instances);
         }
     }
@@ -283,7 +283,7 @@ int main(int argc, char** argv) {
     }
     if (bench) fclose(bench);
 
-    hr_world_destroy(world);
+    hr_game_world_destroy(world);
     hr_jobs_shutdown(jobs);
     hr_renderer_shutdown(renderer);
     hr_window_destroy(window);

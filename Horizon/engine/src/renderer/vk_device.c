@@ -489,6 +489,9 @@ static void create_pipeline_layouts(HrRenderer* r) {
         ci.setLayoutCount = 1;
         ci.pSetLayouts = &r->global_dsl;
         VK_CHECK(vkCreatePipelineLayout(r->device, &ci, NULL, &r->sky_layout));
+        VkPushConstantRange pcr = { VK_SHADER_STAGE_VERTEX_BIT, 0, 4 };
+        ci.pushConstantRangeCount = 1;
+        ci.pPushConstantRanges = &pcr;
         VK_CHECK(vkCreatePipelineLayout(r->device, &ci, NULL, &r->shadow_layout));
     }
     {
@@ -567,6 +570,19 @@ bool hr_renderer_init(HrRenderer** out, const HrRendererDesc* desc) {
     create_surface(r);
     pick_physical_device(r);
     create_device(r);
+
+    {
+        VkSamplerCreateInfo si = { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+        si.magFilter = VK_FILTER_NEAREST;
+        si.minFilter = VK_FILTER_NEAREST;
+        si.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        si.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+        si.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+        si.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+        si.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        si.maxLod = 0.0f;
+        VK_CHECK(vkCreateSampler(r->device, &si, NULL, &r->shadow_sampler));
+    }
 
     VkCommandPoolCreateInfo pci = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
     pci.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -657,6 +673,7 @@ void hr_renderer_shutdown(HrRenderer* r) {
         if (r->material_dsl) vkDestroyDescriptorSetLayout(r->device, r->material_dsl, NULL);
         if (r->post_dsl_a) vkDestroyDescriptorSetLayout(r->device, r->post_dsl_a, NULL);
         if (r->post_dsl_b) vkDestroyDescriptorSetLayout(r->device, r->post_dsl_b, NULL);
+        if (r->shadow_sampler) vkDestroySampler(r->device, r->shadow_sampler, NULL);
         if (r->hdr_rp) vkDestroyRenderPass(r->device, r->hdr_rp, NULL);
         if (r->shadow_rp) vkDestroyRenderPass(r->device, r->shadow_rp, NULL);
         if (r->bloom_rp) vkDestroyRenderPass(r->device, r->bloom_rp, NULL);

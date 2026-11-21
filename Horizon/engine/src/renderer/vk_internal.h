@@ -30,6 +30,7 @@
 #define HR_VK_MAX_DRAWS 16384
 #define HR_VK_MAX_INSTANCES 12288
 #define HR_VK_MAX_MESHES 96
+#define HR_CASCADE_COUNT 4
 
 #define VK_CHECK(x) do { VkResult _r = (x); if (_r != VK_SUCCESS) { \
     HR_FATAL("vulkan", "%s failed with VkResult %d (%s:%d)", #x, (int)_r, __FILE__, __LINE__); } } while (0)
@@ -37,15 +38,17 @@
 typedef struct HrGlobals {
     Mat4 view_proj;
     Mat4 inv_view_proj;
-    Mat4 light_view_proj;
+    Mat4 light_view_proj[HR_CASCADE_COUNT];
     Vec4 cam_pos_time;
+    Vec4 cam_forward;
     Vec4 sun_dir_intensity;
     Vec4 sun_color_exposure;
     Vec4 ambient_sky;
     Vec4 ambient_ground;
     Vec4 fog_color_density;
     Vec4 screen;
-    Vec4 shadow_params;
+    Vec4 shadow_params;   /* x: 1/size, y: distance, z: enabled, w: cascade count */
+    Vec4 cascade_splits;  /* view depth at the far edge of each cascade           */
     Vec4 misc;
 } HrGlobals;
 
@@ -98,7 +101,9 @@ typedef struct HrTargets {
     VkImage hdr, depth, bloom_a, bloom_b, ldr, shadow;
     VkDeviceMemory hdr_mem, depth_mem, bloom_a_mem, bloom_b_mem, ldr_mem, shadow_mem;
     VkImageView hdr_view, depth_view, bloom_a_view, bloom_b_view, ldr_view, shadow_view;
-    VkFramebuffer hdr_fb, bloom_a_fb, bloom_b_fb, ldr_fb, shadow_fb;
+    VkImageView shadow_layer_views[HR_CASCADE_COUNT];
+    VkFramebuffer hdr_fb, bloom_a_fb, bloom_b_fb, ldr_fb;
+    VkFramebuffer shadow_fbs[HR_CASCADE_COUNT];
     HrGpuBuffer capture;
 } HrTargets;
 
@@ -169,6 +174,7 @@ struct HrRenderer {
     VkPipeline bright_pipeline, blur_pipeline, post_pipeline;
     VkPipelineLayout scene_layout, sky_layout, shadow_layout, post_layout_a, post_layout_b;
     VkDescriptorSetLayout global_dsl, material_dsl, post_dsl_a, post_dsl_b;
+    VkSampler shadow_sampler;
     VkDescriptorPool pool_frame, pool_material;
 
     VkCommandPool cmd_pool;
@@ -229,6 +235,8 @@ void hr_vk_destroy_image(HrRenderer* r, VkImage* image, VkDeviceMemory* mem);
 VkImageView hr_vk_create_view(HrRenderer* r, VkImage image, VkFormat format,
                               VkImageAspectFlags aspect, u32 mips, u32 layers,
                               VkImageViewType type);
+VkImageView hr_vk_create_view_layer(HrRenderer* r, VkImage image, VkFormat format,
+                                    VkImageAspectFlags aspect, u32 layer);
 VkShaderModule hr_vk_load_shader(HrRenderer* r, const char* name);
 VkPipeline hr_vk_create_pipeline(HrRenderer* r, VkPipelineLayout layout, VkRenderPass rp,
                                  const char* vs, const char* fs,

@@ -10,8 +10,9 @@ layout(location = 5) in vec4 v_params;
 layout(set = 0, binding = 0) uniform Globals {
     mat4 view_proj;
     mat4 inv_view_proj;
-    mat4 light_view_proj;
+    mat4 light_view_proj[4];
     vec4 cam_pos_time;
+    vec4 cam_forward;
     vec4 sun_dir_intensity;
     vec4 sun_color_exposure;
     vec4 ambient_sky;
@@ -19,10 +20,11 @@ layout(set = 0, binding = 0) uniform Globals {
     vec4 fog_color_density;
     vec4 screen;
     vec4 shadow_params;
+    vec4 cascade_splits;
     vec4 misc;
 } g;
 
-layout(set = 0, binding = 1) uniform sampler2D u_shadow;
+layout(set = 0, binding = 1) uniform sampler2DArray u_shadow;
 
 layout(set = 1, binding = 0) uniform Material {
     vec4 base_color;
@@ -65,21 +67,37 @@ vec3 fresnel_schlick(float cos_theta, vec3 f0) {
 
 float shadow_factor(vec3 world, vec3 n, vec3 l) {
     if (g.shadow_params.z < 0.5) return 1.0;
-    vec4 lp = g.light_view_proj * vec4(world, 1.0);
+
+    float view_depth = dot(world - g.cam_pos_time.xyz, g.cam_forward.xyz);
+    int cascade = 3;
+    for (int i = 0; i < 4; ++i) {
+        if (view_depth <= g.cascade_splits[i]) { cascade = i; break; }
+    }
+
+    /* Slope-scaled normal offset keeps contact shadows while avoiding acne. */
+    float ndl = max(dot(n, l), 0.0);
+    float texel = g.shadow_params.x;
+    float normal_offset = texel * (1.4 + (1.0 - ndl) * 3.0);
+    vec4 lp = g.light_view_proj[cascade] * vec4(world + n * normal_offset, 1.0);
     vec3 proj = lp.xyz / lp.w;
     vec2 uv = proj.xy * 0.5 + 0.5;
-    if (uv.x <= 0.001 || uv.x >= 0.999 || uv.y <= 0.001 || uv.y >= 0.999) return 1.0;
-    float ndl = max(dot(n, l), 0.0);
-    float bias = max(0.0016 * (1.0 - ndl), 0.00035);
-    float texel = g.shadow_params.x;
+    if (uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0 || proj.z >= 1.0)
+        return 1.0;
+
+    float bias = max(0.0022 * (1.0 - ndl), 0.00045);
     float sum = 0.0;
     for (int y = -1; y <= 1; ++y) {
         for (int x = -1; x <= 1; ++x) {
-            float d = texture(u_shadow, uv + vec2(x, y) * texel).r;
+            float d = texture(u_shadow, vec3(uv + vec2(x, y) * texel, float(cascade))).r;
             sum += (proj.z - bias) <= d ? 1.0 : 0.0;
         }
     }
-    return sum / 9.0;
+    float sh = sum / 9.0;
+
+    /* Fade the last cascade out instead of hard-clipping to full sun. */
+    float far_split = g.cascade_splits[3];
+    float fade = 1.0 - smoothstep(far_split * 0.90, far_split, view_depth);
+    return mix(1.0, sh, fade);
 }
 
 float hash21(vec2 p) {
@@ -163,7 +181,8 @@ void main() {
     vec3 direct = (kd * albedo / PI + spec) * radiance * ndl;
 
     float sh = shadow_factor(v_world, n, l);
-    direct *= mix(0.36, 1.0, sh);
+    direct *= mix(0.18, 1.0, sh);
+    ao *= mix(0.72, 1.0, sh);
 
     vec3 r = reflect(-v, n);
     vec3 ambient_diffuse = sky_ambient(n) * albedo * ao * 1.15;
