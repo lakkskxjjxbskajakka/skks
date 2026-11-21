@@ -212,10 +212,38 @@ CMakeFiles/horizon.dir/engine/src/core/scene.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/horizon.dir/engine/src/core/scene.c.s"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/runner/work/skks/skks/Horizon/engine/src/core/scene.c -o CMakeFiles/horizon.dir/engine/src/core/scene.c.s
 
+CMakeFiles/horizon.dir/engine/src/core/physics.c.o: CMakeFiles/horizon.dir/flags.make
+CMakeFiles/horizon.dir/engine/src/core/physics.c.o: /home/runner/work/skks/skks/Horizon/engine/src/core/physics.c
+CMakeFiles/horizon.dir/engine/src/core/physics.c.o: CMakeFiles/horizon.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building C object CMakeFiles/horizon.dir/engine/src/core/physics.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/horizon.dir/engine/src/core/physics.c.o -MF CMakeFiles/horizon.dir/engine/src/core/physics.c.o.d -o CMakeFiles/horizon.dir/engine/src/core/physics.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/core/physics.c
+
+CMakeFiles/horizon.dir/engine/src/core/physics.c.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing C source to CMakeFiles/horizon.dir/engine/src/core/physics.c.i"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/runner/work/skks/skks/Horizon/engine/src/core/physics.c > CMakeFiles/horizon.dir/engine/src/core/physics.c.i
+
+CMakeFiles/horizon.dir/engine/src/core/physics.c.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/horizon.dir/engine/src/core/physics.c.s"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/runner/work/skks/skks/Horizon/engine/src/core/physics.c -o CMakeFiles/horizon.dir/engine/src/core/physics.c.s
+
+CMakeFiles/horizon.dir/engine/src/core/animation.c.o: CMakeFiles/horizon.dir/flags.make
+CMakeFiles/horizon.dir/engine/src/core/animation.c.o: /home/runner/work/skks/skks/Horizon/engine/src/core/animation.c
+CMakeFiles/horizon.dir/engine/src/core/animation.c.o: CMakeFiles/horizon.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building C object CMakeFiles/horizon.dir/engine/src/core/animation.c.o"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/horizon.dir/engine/src/core/animation.c.o -MF CMakeFiles/horizon.dir/engine/src/core/animation.c.o.d -o CMakeFiles/horizon.dir/engine/src/core/animation.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/core/animation.c
+
+CMakeFiles/horizon.dir/engine/src/core/animation.c.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing C source to CMakeFiles/horizon.dir/engine/src/core/animation.c.i"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /home/runner/work/skks/skks/Horizon/engine/src/core/animation.c > CMakeFiles/horizon.dir/engine/src/core/animation.c.i
+
+CMakeFiles/horizon.dir/engine/src/core/animation.c.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling C source to assembly CMakeFiles/horizon.dir/engine/src/core/animation.c.s"
+	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /home/runner/work/skks/skks/Horizon/engine/src/core/animation.c -o CMakeFiles/horizon.dir/engine/src/core/animation.c.s
+
 CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o: CMakeFiles/horizon.dir/flags.make
 CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o: /home/runner/work/skks/skks/Horizon/engine/src/platform/platform_linux.c
 CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o: CMakeFiles/horizon.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building C object CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building C object CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o -MF CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o.d -o CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/platform/platform_linux.c
 
 CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.i: cmake_force
@@ -229,7 +257,7 @@ CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.s: cmake_force
 CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o: CMakeFiles/horizon.dir/flags.make
 CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o: /home/runner/work/skks/skks/Horizon/engine/src/platform/platform_win32.c
 CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o: CMakeFiles/horizon.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building C object CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building C object CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o -MF CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o.d -o CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/platform/platform_win32.c
 
 CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.i: cmake_force
@@ -243,7 +271,7 @@ CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.s: cmake_force
 CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o: CMakeFiles/horizon.dir/flags.make
 CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o: /home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_common.c
 CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o: CMakeFiles/horizon.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building C object CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building C object CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o -MF CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o.d -o CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_common.c
 
 CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.i: cmake_force
@@ -257,7 +285,7 @@ CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.s: cmake_force
 CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.o: CMakeFiles/horizon.dir/flags.make
 CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.o: /home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_device.c
 CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.o: CMakeFiles/horizon.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building C object CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Building C object CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.o -MF CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.o.d -o CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_device.c
 
 CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.i: cmake_force
@@ -271,7 +299,7 @@ CMakeFiles/horizon.dir/engine/src/renderer/vk_device.c.s: cmake_force
 CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.o: CMakeFiles/horizon.dir/flags.make
 CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.o: /home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_targets.c
 CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.o: CMakeFiles/horizon.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building C object CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_23) "Building C object CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.o -MF CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.o.d -o CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_targets.c
 
 CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.i: cmake_force
@@ -285,7 +313,7 @@ CMakeFiles/horizon.dir/engine/src/renderer/vk_targets.c.s: cmake_force
 CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.o: CMakeFiles/horizon.dir/flags.make
 CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.o: /home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_frame.c
 CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.o: CMakeFiles/horizon.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Building C object CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_24) "Building C object CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.o -MF CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.o.d -o CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/renderer/vk_frame.c
 
 CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.i: cmake_force
@@ -299,7 +327,7 @@ CMakeFiles/horizon.dir/engine/src/renderer/vk_frame.c.s: cmake_force
 CMakeFiles/horizon.dir/engine/src/renderer/mesh.c.o: CMakeFiles/horizon.dir/flags.make
 CMakeFiles/horizon.dir/engine/src/renderer/mesh.c.o: /home/runner/work/skks/skks/Horizon/engine/src/renderer/mesh.c
 CMakeFiles/horizon.dir/engine/src/renderer/mesh.c.o: CMakeFiles/horizon.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_23) "Building C object CMakeFiles/horizon.dir/engine/src/renderer/mesh.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_25) "Building C object CMakeFiles/horizon.dir/engine/src/renderer/mesh.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/horizon.dir/engine/src/renderer/mesh.c.o -MF CMakeFiles/horizon.dir/engine/src/renderer/mesh.c.o.d -o CMakeFiles/horizon.dir/engine/src/renderer/mesh.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/renderer/mesh.c
 
 CMakeFiles/horizon.dir/engine/src/renderer/mesh.c.i: cmake_force
@@ -313,7 +341,7 @@ CMakeFiles/horizon.dir/engine/src/renderer/mesh.c.s: cmake_force
 CMakeFiles/horizon.dir/engine/src/renderer/textures.c.o: CMakeFiles/horizon.dir/flags.make
 CMakeFiles/horizon.dir/engine/src/renderer/textures.c.o: /home/runner/work/skks/skks/Horizon/engine/src/renderer/textures.c
 CMakeFiles/horizon.dir/engine/src/renderer/textures.c.o: CMakeFiles/horizon.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_24) "Building C object CMakeFiles/horizon.dir/engine/src/renderer/textures.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_26) "Building C object CMakeFiles/horizon.dir/engine/src/renderer/textures.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/horizon.dir/engine/src/renderer/textures.c.o -MF CMakeFiles/horizon.dir/engine/src/renderer/textures.c.o.d -o CMakeFiles/horizon.dir/engine/src/renderer/textures.c.o -c /home/runner/work/skks/skks/Horizon/engine/src/renderer/textures.c
 
 CMakeFiles/horizon.dir/engine/src/renderer/textures.c.i: cmake_force
@@ -327,7 +355,7 @@ CMakeFiles/horizon.dir/engine/src/renderer/textures.c.s: cmake_force
 CMakeFiles/horizon.dir/generated/shaders_embedded.c.o: CMakeFiles/horizon.dir/flags.make
 CMakeFiles/horizon.dir/generated/shaders_embedded.c.o: generated/shaders_embedded.c
 CMakeFiles/horizon.dir/generated/shaders_embedded.c.o: CMakeFiles/horizon.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_25) "Building C object CMakeFiles/horizon.dir/generated/shaders_embedded.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_27) "Building C object CMakeFiles/horizon.dir/generated/shaders_embedded.c.o"
 	/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/horizon.dir/generated/shaders_embedded.c.o -MF CMakeFiles/horizon.dir/generated/shaders_embedded.c.o.d -o CMakeFiles/horizon.dir/generated/shaders_embedded.c.o -c /home/runner/work/skks/skks/Horizon/build/generated/shaders_embedded.c
 
 CMakeFiles/horizon.dir/generated/shaders_embedded.c.i: cmake_force
@@ -346,6 +374,8 @@ horizon_OBJECTS = \
 "CMakeFiles/horizon.dir/engine/src/core/jobs.c.o" \
 "CMakeFiles/horizon.dir/engine/src/core/ecs.c.o" \
 "CMakeFiles/horizon.dir/engine/src/core/scene.c.o" \
+"CMakeFiles/horizon.dir/engine/src/core/physics.c.o" \
+"CMakeFiles/horizon.dir/engine/src/core/animation.c.o" \
 "CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o" \
 "CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o" \
 "CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o" \
@@ -365,6 +395,8 @@ libhorizon.a: CMakeFiles/horizon.dir/engine/src/core/memory.c.o
 libhorizon.a: CMakeFiles/horizon.dir/engine/src/core/jobs.c.o
 libhorizon.a: CMakeFiles/horizon.dir/engine/src/core/ecs.c.o
 libhorizon.a: CMakeFiles/horizon.dir/engine/src/core/scene.c.o
+libhorizon.a: CMakeFiles/horizon.dir/engine/src/core/physics.c.o
+libhorizon.a: CMakeFiles/horizon.dir/engine/src/core/animation.c.o
 libhorizon.a: CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o
 libhorizon.a: CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o
 libhorizon.a: CMakeFiles/horizon.dir/engine/src/renderer/vk_common.c.o
@@ -376,7 +408,7 @@ libhorizon.a: CMakeFiles/horizon.dir/engine/src/renderer/textures.c.o
 libhorizon.a: CMakeFiles/horizon.dir/generated/shaders_embedded.c.o
 libhorizon.a: CMakeFiles/horizon.dir/build.make
 libhorizon.a: CMakeFiles/horizon.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_26) "Linking C static library libhorizon.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/runner/work/skks/skks/Horizon/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_28) "Linking C static library libhorizon.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/horizon.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/horizon.dir/link.txt --verbose=$(VERBOSE)
 

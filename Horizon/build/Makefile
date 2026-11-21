@@ -218,6 +218,30 @@ benchmarks/bench_core.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon_bench.dir/build.make CMakeFiles/horizon_bench.dir/benchmarks/bench_core.c.s
 .PHONY : benchmarks/bench_core.c.s
 
+engine/src/core/animation.o: engine/src/core/animation.c.o
+.PHONY : engine/src/core/animation.o
+
+# target to build an object file
+engine/src/core/animation.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/animation.c.o
+.PHONY : engine/src/core/animation.c.o
+
+engine/src/core/animation.i: engine/src/core/animation.c.i
+.PHONY : engine/src/core/animation.i
+
+# target to preprocess a source file
+engine/src/core/animation.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/animation.c.i
+.PHONY : engine/src/core/animation.c.i
+
+engine/src/core/animation.s: engine/src/core/animation.c.s
+.PHONY : engine/src/core/animation.s
+
+# target to generate assembly for a file
+engine/src/core/animation.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/animation.c.s
+.PHONY : engine/src/core/animation.c.s
+
 engine/src/core/core.o: engine/src/core/core.c.o
 .PHONY : engine/src/core/core.o
 
@@ -337,6 +361,30 @@ engine/src/core/memory.s: engine/src/core/memory.c.s
 engine/src/core/memory.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/memory.c.s
 .PHONY : engine/src/core/memory.c.s
+
+engine/src/core/physics.o: engine/src/core/physics.c.o
+.PHONY : engine/src/core/physics.o
+
+# target to build an object file
+engine/src/core/physics.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/physics.c.o
+.PHONY : engine/src/core/physics.c.o
+
+engine/src/core/physics.i: engine/src/core/physics.c.i
+.PHONY : engine/src/core/physics.i
+
+# target to preprocess a source file
+engine/src/core/physics.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/physics.c.i
+.PHONY : engine/src/core/physics.c.i
+
+engine/src/core/physics.s: engine/src/core/physics.c.s
+.PHONY : engine/src/core/physics.s
+
+# target to generate assembly for a file
+engine/src/core/physics.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/horizon.dir/build.make CMakeFiles/horizon.dir/engine/src/core/physics.c.s
+.PHONY : engine/src/core/physics.c.s
 
 engine/src/core/scene.o: engine/src/core/scene.c.o
 .PHONY : engine/src/core/scene.o
@@ -714,6 +762,9 @@ help:
 	@echo "... benchmarks/bench_core.o"
 	@echo "... benchmarks/bench_core.i"
 	@echo "... benchmarks/bench_core.s"
+	@echo "... engine/src/core/animation.o"
+	@echo "... engine/src/core/animation.i"
+	@echo "... engine/src/core/animation.s"
 	@echo "... engine/src/core/core.o"
 	@echo "... engine/src/core/core.i"
 	@echo "... engine/src/core/core.s"
@@ -729,6 +780,9 @@ help:
 	@echo "... engine/src/core/memory.o"
 	@echo "... engine/src/core/memory.i"
 	@echo "... engine/src/core/memory.s"
+	@echo "... engine/src/core/physics.o"
+	@echo "... engine/src/core/physics.i"
+	@echo "... engine/src/core/physics.s"
 	@echo "... engine/src/core/scene.o"
 	@echo "... engine/src/core/scene.i"
 	@echo "... engine/src/core/scene.s"

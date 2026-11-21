@@ -1,16 +1,18 @@
-/* Horizon Engine - skeletal animation: skeleton, clips, blending, palettes. */
+/* Horizon Engine - skeletal animation: skeleton, pose, clips, sampling,
+ * blending and a lightweight cross-fade controller. */
 #ifndef HORIZON_ANIMATION_H
 #define HORIZON_ANIMATION_H
 
+#include "horizon/core.h"
 #include "horizon/math.h"
 
 #define HR_ANIM_MAX_JOINTS 128
-#define HR_ANIM_NAME 32
+#define HR_ANIM_MAX_TRACKS 128
 
 typedef struct HrJoint {
+    char name[64];
     i32 parent;
     Mat4 inverse_bind;
-    char name[HR_ANIM_NAME];
 } HrJoint;
 
 typedef struct HrSkeleton {
@@ -18,77 +20,75 @@ typedef struct HrSkeleton {
     u32 joint_count;
 } HrSkeleton;
 
-typedef struct HrAnimKey {
-    float time;
-    Vec3 translation;
-    Quat rotation;
-    Vec3 scale;
-} HrAnimKey;
-
-typedef struct HrAnimTrack {
-    i32 joint;
-    HrAnimKey* keys;
-    u32 key_count;
-    u32 key_cap;
-} HrAnimTrack;
-
-typedef struct HrAnimationClip {
-    char name[48];
-    float duration;
-    bool loop;
-    HrAnimTrack* tracks;
-    u32 track_count;
-    u32 track_cap;
-} HrAnimationClip;
-
 typedef struct HrPose {
-    Vec3 translation[HR_ANIM_MAX_JOINTS];
-    Quat rotation[HR_ANIM_MAX_JOINTS];
-    Vec3 scale[HR_ANIM_MAX_JOINTS];
+    Vec3 translations[HR_ANIM_MAX_JOINTS];
+    Quat rotations[HR_ANIM_MAX_JOINTS];
+    Vec3 scales[HR_ANIM_MAX_JOINTS];
     u32 joint_count;
 } HrPose;
 
-typedef struct HrAnimator {
+typedef struct HrAnimKeyVec3 {
+    float time;
+    Vec3 value;
+} HrAnimKeyVec3;
+
+typedef struct HrAnimKeyQuat {
+    float time;
+    Quat value;
+} HrAnimKeyQuat;
+
+typedef struct HrAnimTrack {
+    u32 joint_index;
+    HrAnimKeyVec3* positions;
+    u32 position_count;
+    HrAnimKeyQuat* rotations;
+    u32 rotation_count;
+    HrAnimKeyVec3* scales;
+    u32 scale_count;
+} HrAnimTrack;
+
+typedef struct HrAnimationClip {
+    char name[64];
+    float duration;
+    bool looping;
+    HrAnimTrack* tracks;
+    u32 track_count;
+    u32 track_capacity;
+} HrAnimationClip;
+
+typedef struct HrAnimController {
     const HrSkeleton* skeleton;
     const HrAnimationClip* current;
     const HrAnimationClip* previous;
-    float current_time;
-    float previous_time;
-    float blend;        /* 0 = previous, 1 = current */
-    float blend_speed;
+    float time;
+    float prev_time;
+    float fade_duration;
+    float fade_elapsed;
     float speed;
-    bool paused;
-} HrAnimator;
+} HrAnimController;
 
-void hr_skeleton_init(HrSkeleton* s);
-i32  hr_skeleton_add_joint(HrSkeleton* s, const char* name, i32 parent,
-                           Mat4 inverse_bind);
-i32  hr_skeleton_find_joint(const HrSkeleton* s, const char* name);
+void hr_skeleton_init(HrSkeleton* skel);
+i32  hr_skeleton_add_joint(HrSkeleton* skel, const char* name, i32 parent, Mat4 inverse_bind);
+i32  hr_skeleton_find_joint(const HrSkeleton* skel, const char* name);
 
-HrAnimationClip* hr_animation_clip_create(const char* name, float duration, bool loop);
+void hr_pose_identity(HrPose* pose, u32 joint_count);
+void hr_pose_bind(const HrSkeleton* skel, HrPose* out_pose);
+void hr_pose_lerp(const HrPose* a, const HrPose* b, float t, HrPose* out);
+void hr_pose_local_matrices(const HrPose* pose, Mat4* out_local, u32 count);
+void hr_pose_palette(const HrSkeleton* skel, const HrPose* pose, Mat4* out_palette);
+
+HrAnimationClip* hr_animation_clip_create(const char* name, float duration, bool looping);
 void hr_animation_clip_destroy(HrAnimationClip* clip);
+HrAnimTrack* hr_animation_clip_add_track(HrAnimationClip* clip, u32 joint_index);
+bool hr_anim_track_add_position(HrAnimTrack* track, float time, Vec3 value);
+bool hr_anim_track_add_rotation(HrAnimTrack* track, float time, Quat value);
+bool hr_anim_track_add_scale(HrAnimTrack* track, float time, Vec3 value);
 
-/* Reallocating the track array invalidates previously returned pointers. */
-HrAnimTrack* hr_animation_clip_add_track(HrAnimationClip* clip, i32 joint);
-void hr_anim_track_add_key(HrAnimTrack* track, float time,
-                           Vec3 translation, Quat rotation, Vec3 scale);
+bool hr_animation_sample(const HrAnimationClip* clip, float time, HrPose* out_pose, u32 joint_count);
 
-/* Samples local-space TRS.  Looping clips wrap the time; joint_count is set to
- * the highest animated joint + 1. */
-bool hr_animation_sample(const HrAnimationClip* clip, float time, HrPose* out);
-
-void hr_pose_bind(const HrSkeleton* skeleton, HrPose* out);
-void hr_pose_blend(const HrPose* a, const HrPose* b, float t, HrPose* out);
-
-/* Parents must precede children (enforced by hr_skeleton_add_joint). */
-void hr_pose_compute_matrices(const HrSkeleton* skeleton, const HrPose* pose,
-                              Mat4* out_local, Mat4* out_world);
-void hr_pose_palette(const HrSkeleton* skeleton, const HrPose* pose,
-                     Mat4* out_palette);
-
-void hr_animator_init(HrAnimator* anim, const HrSkeleton* skeleton);
-void hr_animator_play(HrAnimator* anim, const HrAnimationClip* clip, float fade_seconds);
-void hr_animator_update(HrAnimator* anim, float dt);
-void hr_animator_pose(const HrAnimator* anim, HrPose* out);
+void hr_anim_controller_init(HrAnimController* c, const HrSkeleton* skel);
+void hr_anim_controller_play(HrAnimController* c, const HrAnimationClip* clip, float fade_duration);
+void hr_anim_controller_update(HrAnimController* c, float dt);
+void hr_anim_controller_pose(const HrAnimController* c, HrPose* out_pose);
 
 #endif /* HORIZON_ANIMATION_H */

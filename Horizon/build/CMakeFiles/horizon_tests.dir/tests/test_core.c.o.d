@@ -57,4 +57,6 @@ CMakeFiles/horizon_tests.dir/tests/test_core.c.o: \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/scene.h \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/mesh.h \
  /home/runner/work/skks/skks/Horizon/engine/include/horizon/textures.h \
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/physics.h \
+ /home/runner/work/skks/skks/Horizon/engine/include/horizon/animation.h \
  /usr/lib/gcc/x86_64-linux-gnu/15/include/stdatomic.h

@@ -1,4 +1,6 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/horizon.dir/engine/src/core/animation.c.o"
+  "CMakeFiles/horizon.dir/engine/src/core/animation.c.o.d"
   "CMakeFiles/horizon.dir/engine/src/core/core.c.o"
   "CMakeFiles/horizon.dir/engine/src/core/core.c.o.d"
   "CMakeFiles/horizon.dir/engine/src/core/ecs.c.o"
@@ -9,6 +11,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/horizon.dir/engine/src/core/math.c.o.d"
   "CMakeFiles/horizon.dir/engine/src/core/memory.c.o"
   "CMakeFiles/horizon.dir/engine/src/core/memory.c.o.d"
+  "CMakeFiles/horizon.dir/engine/src/core/physics.c.o"
+  "CMakeFiles/horizon.dir/engine/src/core/physics.c.o.d"
   "CMakeFiles/horizon.dir/engine/src/core/scene.c.o"
   "CMakeFiles/horizon.dir/engine/src/core/scene.c.o.d"
   "CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o"

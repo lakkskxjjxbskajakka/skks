@@ -1,1 +1,1 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/horizon_tests.dir/link.d CMakeFiles/horizon_tests.dir/tests/test_core.c.o -o horizon_tests  libhorizon.a /usr/lib/x86_64-linux-gnu/libvulkan.so -lX11 -lXext -lm -ldl
+/usr/bin/cc -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/horizon_tests.dir/link.d CMakeFiles/horizon_tests.dir/tests/test_core.c.o -o horizon_tests  libhorizon.a /usr/lib/x86_64-linux-gnu/libvulkan.so /usr/lib/x86_64-linux-gnu/libX11.so /usr/lib/x86_64-linux-gnu/libXext.so -lm -ldl

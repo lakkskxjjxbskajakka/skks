@@ -5,8 +5,8 @@ horizon_tests: \
   CMakeFiles/horizon_tests.dir/tests/test_core.c.o \
   libhorizon.a \
   /usr/lib/x86_64-linux-gnu/libvulkan.so \
-  /usr/lib/gcc/x86_64-linux-gnu/15/../../../x86_64-linux-gnu/libX11.so \
-  /usr/lib/gcc/x86_64-linux-gnu/15/../../../x86_64-linux-gnu/libXext.so \
+  /usr/lib/x86_64-linux-gnu/libX11.so \
+  /usr/lib/x86_64-linux-gnu/libXext.so \
   /usr/lib/gcc/x86_64-linux-gnu/15/../../../x86_64-linux-gnu/libm.so \
   /usr/lib/gcc/x86_64-linux-gnu/15/../../../x86_64-linux-gnu/libm.so \
   /usr/lib/gcc/x86_64-linux-gnu/15/../../../x86_64-linux-gnu/libm.so \
@@ -47,9 +47,9 @@ libhorizon.a:
 
 /usr/lib/x86_64-linux-gnu/libvulkan.so:
 
-/usr/lib/gcc/x86_64-linux-gnu/15/../../../x86_64-linux-gnu/libX11.so:
+/usr/lib/x86_64-linux-gnu/libX11.so:
 
-/usr/lib/gcc/x86_64-linux-gnu/15/../../../x86_64-linux-gnu/libXext.so:
+/usr/lib/x86_64-linux-gnu/libXext.so:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/../../../x86_64-linux-gnu/libm.so:
 

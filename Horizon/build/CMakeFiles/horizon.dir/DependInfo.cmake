@@ -8,11 +8,13 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/home/runner/work/skks/skks/Horizon/engine/src/core/animation.c" "CMakeFiles/horizon.dir/engine/src/core/animation.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/animation.c.o.d"
   "/home/runner/work/skks/skks/Horizon/engine/src/core/core.c" "CMakeFiles/horizon.dir/engine/src/core/core.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/core.c.o.d"
   "/home/runner/work/skks/skks/Horizon/engine/src/core/ecs.c" "CMakeFiles/horizon.dir/engine/src/core/ecs.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/ecs.c.o.d"
   "/home/runner/work/skks/skks/Horizon/engine/src/core/jobs.c" "CMakeFiles/horizon.dir/engine/src/core/jobs.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/jobs.c.o.d"
   "/home/runner/work/skks/skks/Horizon/engine/src/core/math.c" "CMakeFiles/horizon.dir/engine/src/core/math.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/math.c.o.d"
   "/home/runner/work/skks/skks/Horizon/engine/src/core/memory.c" "CMakeFiles/horizon.dir/engine/src/core/memory.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/memory.c.o.d"
+  "/home/runner/work/skks/skks/Horizon/engine/src/core/physics.c" "CMakeFiles/horizon.dir/engine/src/core/physics.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/physics.c.o.d"
   "/home/runner/work/skks/skks/Horizon/engine/src/core/scene.c" "CMakeFiles/horizon.dir/engine/src/core/scene.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/core/scene.c.o.d"
   "/home/runner/work/skks/skks/Horizon/engine/src/platform/platform_linux.c" "CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/platform/platform_linux.c.o.d"
   "/home/runner/work/skks/skks/Horizon/engine/src/platform/platform_win32.c" "CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o" "gcc" "CMakeFiles/horizon.dir/engine/src/platform/platform_win32.c.o.d"
