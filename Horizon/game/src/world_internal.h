@@ -41,6 +41,24 @@ typedef struct HrPostInstance {
     float rotation;
 } HrPostInstance;
 
+typedef struct HrLampInstance {
+    Vec3 pos;
+    float rotation;
+} HrLampInstance;
+
+typedef struct HrBushInstance {
+    Vec3 pos;
+    float scale;
+    float rotation;
+    Vec4 tint;
+} HrBushInstance;
+
+typedef struct HrHouseInstance {
+    Vec3 pos;
+    float rotation;
+    float scale;
+} HrHouseInstance;
+
 struct HrGameWorld {
     HrRenderer* renderer;
     HrJobSystem* jobs;
@@ -49,16 +67,34 @@ struct HrGameWorld {
     int road_count;
     float road_length;
 
+    Vec3 lake_center;
+    float lake_radius;
+    float lake_level;
+
     HrTreeInstance* trees;
     int tree_count;
     HrRockInstance* rocks;
     int rock_count;
     HrPostInstance* posts;
     int post_count;
+    HrLampInstance* lamps;
+    int lamp_count;
+    HrBushInstance* bushes;
+    int bush_count;
+    HrHouseInstance* houses;
+    int house_count;
 
     int mesh_terrain;
     int mesh_road;
     int mesh_shoulder;
+    int mesh_water;
+    int mesh_guardrail;
+    int mesh_lamp_pole;
+    int mesh_lamp_head;
+    int mesh_bush;
+    int mesh_house_wall;
+    int mesh_house_roof;
+    int mesh_house_window;
     int mesh_trunk;
     int mesh_pine;
     int mesh_leaf;

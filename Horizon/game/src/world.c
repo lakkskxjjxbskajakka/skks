@@ -99,6 +99,9 @@ void hr_game_world_destroy(HrGameWorld* w) {
     hr_free(w->trees);
     hr_free(w->rocks);
     hr_free(w->posts);
+    hr_free(w->lamps);
+    hr_free(w->bushes);
+    hr_free(w->houses);
     hr_free(w);
 }
 
@@ -288,7 +291,36 @@ void hr_game_world_render(HrGameWorld* w) {
     hr_renderer_draw(r, w->mesh_terrain, HR_MAT_TERRAIN, mat4_identity(), v4s(1));
     hr_renderer_draw(r, w->mesh_road, HR_MAT_ROAD, mat4_identity(), v4(0.60f, 0.60f, 0.64f, 1));
     hr_renderer_draw(r, w->mesh_shoulder, HR_MAT_CONCRETE, mat4_identity(),
-                     v4(0.44f, 0.40f, 0.34f, 1));
+                     v4(0.62f, 0.58f, 0.50f, 1));
+    hr_renderer_draw(r, w->mesh_water, HR_MAT_WATER, mat4_identity(), v4(1, 1, 1, 1));
+    hr_renderer_draw(r, w->mesh_guardrail, HR_MAT_METAL, mat4_identity(),
+                     v4(0.66f, 0.68f, 0.72f, 1));
+
+    for (int i = 0; i < w->house_count; ++i) {
+        const HrHouseInstance* h = &w->houses[i];
+        Mat4 model = mat4_mul(mat4_translate(h->pos),
+                              mat4_mul(mat4_rotate_y(h->rotation), mat4_scale_uniform(h->scale)));
+        hr_renderer_draw(r, w->mesh_house_wall, HR_MAT_CONCRETE, model,
+                         v4(0.72f, 0.62f, 0.50f, 1));
+        hr_renderer_draw(r, w->mesh_house_roof, HR_MAT_ROCK, model,
+                         v4(0.30f, 0.23f, 0.20f, 1));
+        hr_renderer_draw(r, w->mesh_house_window, HR_MAT_WINDOW, model,
+                         v4(1.0f, 0.78f, 0.46f, 1));
+    }
+    for (int i = 0; i < w->lamp_count; ++i) {
+        Mat4 model = mat4_mul(mat4_translate(w->lamps[i].pos),
+                              mat4_rotate_y(w->lamps[i].rotation));
+        hr_renderer_draw(r, w->mesh_lamp_pole, HR_MAT_METAL, model,
+                         v4(0.42f, 0.44f, 0.47f, 1));
+        hr_renderer_draw(r, w->mesh_lamp_head, HR_MAT_LIGHT_WHITE, model,
+                         v4(1.0f, 0.86f, 0.62f, 1.0f));
+    }
+    for (int i = 0; i < w->bush_count; ++i) {
+        const HrBushInstance* b = &w->bushes[i];
+        Mat4 model = mat4_mul(mat4_translate(b->pos),
+                              mat4_mul(mat4_rotate_y(b->rotation), mat4_scale_uniform(b->scale)));
+        hr_renderer_draw(r, w->mesh_bush, HR_MAT_FOLIAGE, model, b->tint);
+    }
 
     for (int i = 0; i < w->tree_count; ++i) {
         const HrTreeInstance* t = &w->trees[i];

@@ -219,7 +219,7 @@ void hr_vk_create_materials(HrRenderer* r) {
                 mu.uv_scale = v4(1, 1, 1.0f, 1.0f);
                 break;
             case HR_MAT_CONCRETE:
-                mu.uv_scale = v4(1, 1, 0.7f, 1.0f);
+                mu.uv_scale = v4(2.5f, 2.5f, 0.28f, 1.0f);
                 break;
             case HR_MAT_LIGHT_WHITE:
                 mu.base_color = v4(1.0f, 0.92f, 0.75f, 1);

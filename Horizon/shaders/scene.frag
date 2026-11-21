@@ -213,7 +213,7 @@ void main() {
         vec3 a1 = texture(u_albedo, uv).rgb;
         vec3 a2 = texture(u_albedo, uv * 0.37 + 0.21).rgb;
         float grain = dot(mix(a1, a2, 0.5), vec3(0.33));
-        albedo = vec3(0.090, 0.092, 0.100) * (0.62 + grain * 1.7);
+        albedo = vec3(0.168, 0.164, 0.162) * (0.72 + grain * 1.45);
 
         float wear = smoothstep(0.10, 0.22, x) * (1.0 - smoothstep(0.30, 0.42, x));
         wear += smoothstep(0.58, 0.70, x) * (1.0 - smoothstep(0.78, 0.90, x));
