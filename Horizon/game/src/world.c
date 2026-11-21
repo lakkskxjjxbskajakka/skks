@@ -142,23 +142,23 @@ void hr_game_world_reset(HrGameWorld* w) {
 }
 
 static void autopilot(HrGameWorld* w, float* throttle, float* steer, float* brake) {
-    float look_m = 12.0f + fabsf(w->car_speed) * 0.52f;
+    float look_m = 10.0f + fabsf(w->car_speed) * 0.62f;
     float t = w->progress + look_m / HR_MAX(w->road_length, 1.0f);
     Vec3 target = hr_road_point(w, t);
     float dx = target.x - w->car_pos.x;
     float dz = target.z - w->car_pos.z;
     float desired = atan2f(dx, dz);
     float diff = wrap_angle(desired - w->car_yaw);
-    *steer = HR_CLAMP(diff * 2.4f, -1.0f, 1.0f);
+    *steer = HR_CLAMP(diff * 3.0f, -1.0f, 1.0f);
 
     float curv = 0.0f;
     for (int i = 4; i <= 48; i += 4) {
         int idx = (w->nearest + i) % w->road_count;
         curv = HR_MAX(curv, w->road[idx].curvature);
     }
-    float target_speed = 62.0f;
-    if (curv > 1e-4f) target_speed = sqrtf(14.0f / curv);
-    target_speed = HR_CLAMP(target_speed, 20.0f, 60.0f);
+    float target_speed = 46.0f;
+    if (curv > 1e-4f) target_speed = sqrtf(10.0f / curv);
+    target_speed = HR_CLAMP(target_speed, 18.0f, 46.0f);
 
     float s = fabsf(w->car_speed);
     if (s < target_speed - 1.0f) { *throttle = 1.0f; *brake = 0.0f; }
@@ -209,6 +209,21 @@ void hr_game_world_update(HrGameWorld* w, float dt, const HrGameWorldInput* inpu
     float moved = speed * dt;
     w->car_pos = v3_add(w->car_pos, v3_scale(w->car_forward, moved));
     if (fabsf(moved) > 1e-4f) w->distance_traveled += fabsf(moved);
+
+    if (w->lake_radius > 0.0f) {
+        float lx = w->car_pos.x - w->lake_center.x;
+        float lz = w->car_pos.z - w->lake_center.z;
+        float ld = sqrtf(lx * lx + lz * lz);
+        float shore = w->lake_radius + 3.0f;
+        if (ld < shore) {
+            float inv = ld > 1e-3f ? 1.0f / ld : 0.0f;
+            float nx = ld > 1e-3f ? lx * inv : 1.0f;
+            float nz = ld > 1e-3f ? lz * inv : 0.0f;
+            w->car_pos.x = w->lake_center.x + nx * shore;
+            w->car_pos.z = w->lake_center.z + nz * shore;
+            w->car_speed *= 0.35f;
+        }
+    }
 
     float dist = 0.0f;
     int nearest = hr_road_nearest(w, w->car_pos.x, w->car_pos.z, &dist);

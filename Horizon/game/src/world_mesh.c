@@ -595,7 +595,7 @@ void hr_game_world_build_environment(HrGameWorld* w) {
 
     w->lake_center = v3(0, 0, 0);
     w->lake_radius = 66.0f;
-    w->lake_level = terrain_raw_height(0.0f, 0.0f) - 0.8f;
+    w->lake_level = terrain_raw_height(0.0f, 0.0f) - 1.7f;
 
     HrMeshData terrain;
     build_terrain(w, &terrain);

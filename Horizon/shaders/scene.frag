@@ -234,27 +234,31 @@ void main() {
         n_world = normalize(t_world * tn.x * normal_strength +
                             b_world * tn.y * normal_strength + n_world);
     } else if ((flags & 32) != 0) {
-        /* ---- lake water: animated ripples, fresnel sky reflection ---- */
+        /* ---- lake water: layered ripples, fresnel sky reflection ---- */
         float t = g.cam_pos_time.w;
-        vec3 wn = water_normal(v_world.xz, t);
-        n_world = normalize(wn);
+        vec2 p = v_world.xz;
+        vec3 n1 = texture(u_normal, p * 0.030 + vec2(t * 0.010, t * 0.006)).xyz * 2.0 - 1.0;
+        vec3 n2 = texture(u_normal, p * 0.082 - vec2(t * 0.014, -t * 0.011)).xyz * 2.0 - 1.0;
+        vec2 slope = (n1.xy + n2.xy * 0.55) * 0.16;
+        n_world = normalize(vec3(slope.x, 1.0, slope.y));
 
         vec3 v = normalize(g.cam_pos_time.xyz - v_world);
         float ndv = max(dot(n_world, v), 0.0);
-        float fres = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
+        float fres = 0.03 + 0.97 * pow(1.0 - ndv, 5.0);
 
         vec3 r = reflect(-v, n_world);
         vec3 refl = sky_ambient(r);
-        float sun_ref = pow(max(dot(r, -normalize(g.sun_dir_intensity.xyz)), 0.0), 90.0);
-        refl += g.sun_color_exposure.rgb * sun_ref * g.sun_dir_intensity.w * 2.5;
+        refl = mix(refl, refl * vec3(0.62, 0.78, 0.98), 0.60);
+        float sun_ref = pow(max(dot(r, -normalize(g.sun_dir_intensity.xyz)), 0.0), 48.0);
+        refl += g.sun_color_exposure.rgb * sun_ref * g.sun_dir_intensity.w * 0.85;
 
-        vec3 deep = vec3(0.012, 0.045, 0.060);
-        vec3 shallow = vec3(0.030, 0.095, 0.105);
-        float shore = 1.0 - smoothstep(0.0, 1.0, fres);
-        vec3 body = mix(deep, shallow, shore * 0.6);
-        vec3 color = mix(body, refl, fres);
+        vec3 deep = vec3(0.010, 0.040, 0.052);
+        vec3 shallow = vec3(0.038, 0.108, 0.118);
+        float depth_tint = smoothstep(8.0, 60.0, length(p));
+        vec3 body = mix(shallow, deep, depth_tint);
+        vec3 color = mix(body, refl, clamp(fres * 0.85, 0.0, 0.90));
         color += g.sun_color_exposure.rgb * pow(max(dot(n_world,
-                     normalize(-g.sun_dir_intensity.xyz + v)), 0.0), 300.0) * 2.0;
+                     normalize(-g.sun_dir_intensity.xyz + v)), 0.0), 220.0) * 1.1;
 
         float dist = length(g.cam_pos_time.xyz - v_world);
         float fog_amount = 1.0 - exp(-g.fog_color_density.w * dist * 0.9);
