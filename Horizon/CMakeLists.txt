@@ -74,6 +74,8 @@ set(HR_ENGINE_SOURCES
   engine/src/core/jobs.c
   engine/src/core/ecs.c
   engine/src/core/scene.c
+  engine/src/animation/animation.c
+  engine/src/physics/physics.c
   engine/src/platform/platform_linux.c
   engine/src/platform/platform_win32.c
   engine/src/renderer/vk_common.c

@@ -1,2 +1,2 @@
-horizon_tests 3 0.00202247
+horizon_tests 4 0.00217437
 ---

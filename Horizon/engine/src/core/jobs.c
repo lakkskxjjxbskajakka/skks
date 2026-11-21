@@ -1,13 +1,58 @@
 #include "horizon/jobs.h"
 #include "horizon/memory.h"
 
-#include <pthread.h>
-#include <unistd.h>
 #include <stdatomic.h>
-#include <time.h>
 
+/* -------------------------------------------------------------------------
+ * Thin platform threading layer.  The scheduler itself is identical on every
+ * platform; only mutex / condition-variable / thread primitives differ.
+ * ---------------------------------------------------------------------- */
 #if defined(_WIN32)
+#  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
+
+typedef SRWLOCK hr_mutex_t;
+typedef CONDITION_VARIABLE hr_cond_t;
+typedef HANDLE hr_thread_t;
+
+static void mutex_init(hr_mutex_t* m) { InitializeSRWLock(m); }
+static void mutex_destroy(hr_mutex_t* m) { (void)m; }
+static void mutex_lock(hr_mutex_t* m) { AcquireSRWLockExclusive(m); }
+static void mutex_unlock(hr_mutex_t* m) { ReleaseSRWLockExclusive(m); }
+static void cond_init(hr_cond_t* c) { InitializeConditionVariable(c); }
+static void cond_destroy(hr_cond_t* c) { (void)c; }
+static void cond_wait(hr_cond_t* c, hr_mutex_t* m) {
+    SleepConditionVariableSRW(c, m, INFINITE, 0);
+}
+static void cond_timedwait_ms(hr_cond_t* c, hr_mutex_t* m, u32 ms) {
+    SleepConditionVariableSRW(c, m, ms, 0);
+}
+static void cond_broadcast(hr_cond_t* c) { WakeAllConditionVariable(c); }
+#else
+#  include <pthread.h>
+#  include <unistd.h>
+#  include <time.h>
+
+typedef pthread_mutex_t hr_mutex_t;
+typedef pthread_cond_t hr_cond_t;
+typedef pthread_t hr_thread_t;
+
+static void mutex_init(hr_mutex_t* m) { pthread_mutex_init(m, NULL); }
+static void mutex_destroy(hr_mutex_t* m) { pthread_mutex_destroy(m); }
+static void mutex_lock(hr_mutex_t* m) { pthread_mutex_lock(m); }
+static void mutex_unlock(hr_mutex_t* m) { pthread_mutex_unlock(m); }
+static void cond_init(hr_cond_t* c) { pthread_cond_init(c, NULL); }
+static void cond_destroy(hr_cond_t* c) { pthread_cond_destroy(c); }
+static void cond_wait(hr_cond_t* c, hr_mutex_t* m) { pthread_cond_wait(c, m); }
+static void cond_timedwait_ms(hr_cond_t* c, hr_mutex_t* m, u32 ms) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += (time_t)(ms / 1000u);
+    ts.tv_nsec += (long)(ms % 1000u) * 1000000L;
+    if (ts.tv_nsec >= 1000000000L) { ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
+    pthread_cond_timedwait(c, m, &ts);
+}
+static void cond_broadcast(hr_cond_t* c) { pthread_cond_broadcast(c); }
 #endif
 
 typedef struct HrTask {
@@ -21,11 +66,11 @@ typedef struct HrTask {
 #define HR_JOB_QUEUE_CAP 65536u
 
 struct HrJobSystem {
-    pthread_t threads[64];
+    hr_thread_t threads[64];
     u32 worker_count;
-    pthread_mutex_t lock;
-    pthread_cond_t work_cv;
-    pthread_cond_t done_cv;
+    hr_mutex_t lock;
+    hr_cond_t work_cv;
+    hr_cond_t done_cv;
     HrTask queue[HR_JOB_QUEUE_CAP];
     u32 head;
     u32 tail;
@@ -49,27 +94,27 @@ static u32 detect_cores(void) {
 
 static bool queue_push(HrJobSystem* js, HrTask t) {
     bool ok = false;
-    pthread_mutex_lock(&js->lock);
+    mutex_lock(&js->lock);
     u32 next = (js->tail + 1u) % HR_JOB_QUEUE_CAP;
     if (next != js->head) {
         js->queue[js->tail] = t;
         js->tail = next;
         ok = true;
-        pthread_cond_signal(&js->work_cv);
+        cond_broadcast(&js->work_cv);
     }
-    pthread_mutex_unlock(&js->lock);
+    mutex_unlock(&js->lock);
     return ok;
 }
 
 static bool queue_pop(HrJobSystem* js, HrTask* out) {
     bool ok = false;
-    pthread_mutex_lock(&js->lock);
+    mutex_lock(&js->lock);
     if (js->head != js->tail) {
         *out = js->queue[js->head];
         js->head = (js->head + 1u) % HR_JOB_QUEUE_CAP;
         ok = true;
     }
-    pthread_mutex_unlock(&js->lock);
+    mutex_unlock(&js->lock);
     return ok;
 }
 
@@ -78,40 +123,73 @@ static void run_task(HrTask* t) {
     else if (t->fn) t->fn(t->arg);
 }
 
-static void* worker_main(void* user) {
+/* Completes one task: decrements the pending counter and wakes waiters when
+ * the last outstanding task finishes. */
+static void task_complete(HrJobSystem* js) {
+    if (atomic_fetch_sub_explicit(&js->pending, 1, memory_order_acq_rel) == 1) {
+        mutex_lock(&js->lock);
+        cond_broadcast(&js->done_cv);
+        mutex_unlock(&js->lock);
+    }
+}
+
+#if defined(_WIN32)
+static DWORD WINAPI worker_main(LPVOID user) {
     HrJobSystem* js = (HrJobSystem*)user;
     for (;;) {
         HrTask t;
         memset(&t, 0, sizeof(t));
         bool have = false;
-        pthread_mutex_lock(&js->lock);
+        mutex_lock(&js->lock);
         while (!have && !atomic_load_explicit(&js->stop, memory_order_relaxed)) {
             if (js->head != js->tail) {
                 t = js->queue[js->head];
                 js->head = (js->head + 1u) % HR_JOB_QUEUE_CAP;
                 have = true;
             } else {
-                pthread_cond_wait(&js->work_cv, &js->lock);
+                cond_wait(&js->work_cv, &js->lock);
             }
         }
-        pthread_mutex_unlock(&js->lock);
+        mutex_unlock(&js->lock);
         if (!have && atomic_load_explicit(&js->stop, memory_order_relaxed)) break;
         run_task(&t);
-        if (atomic_fetch_sub_explicit(&js->pending, 1, memory_order_acq_rel) == 1) {
-            pthread_mutex_lock(&js->lock);
-            pthread_cond_broadcast(&js->done_cv);
-            pthread_mutex_unlock(&js->lock);
+        task_complete(js);
+    }
+    return 0;
+}
+#else
+static void* worker_main(void* user) {
+    HrJobSystem* js = (HrJobSystem*)user;
+    for (;;) {
+        HrTask t;
+        memset(&t, 0, sizeof(t));
+        bool have = false;
+        mutex_lock(&js->lock);
+        while (!have && !atomic_load_explicit(&js->stop, memory_order_relaxed)) {
+            if (js->head != js->tail) {
+                t = js->queue[js->head];
+                js->head = (js->head + 1u) % HR_JOB_QUEUE_CAP;
+                have = true;
+            } else {
+                cond_wait(&js->work_cv, &js->lock);
+            }
         }
+        mutex_unlock(&js->lock);
+        if (!have && atomic_load_explicit(&js->stop, memory_order_relaxed)) break;
+        run_task(&t);
+        task_complete(js);
     }
     return NULL;
 }
+#endif
 
 bool hr_jobs_init(HrJobSystem** out, u32 worker_count) {
+    if (!out) return false;
     HrJobSystem* js = (HrJobSystem*)hr_calloc(1, sizeof(HrJobSystem));
     if (!js) return false;
-    pthread_mutex_init(&js->lock, NULL);
-    pthread_cond_init(&js->work_cv, NULL);
-    pthread_cond_init(&js->done_cv, NULL);
+    mutex_init(&js->lock);
+    cond_init(&js->work_cv);
+    cond_init(&js->done_cv);
     atomic_init(&js->pending, 0);
     atomic_init(&js->stop, false);
     atomic_init(&js->active, 0);
@@ -124,7 +202,12 @@ bool hr_jobs_init(HrJobSystem** out, u32 worker_count) {
     js->worker_count = worker_count;
     g_hw_workers = detect_cores();
     for (u32 i = 0; i < worker_count; ++i) {
+#if defined(_WIN32)
+        js->threads[i] = CreateThread(NULL, 0, worker_main, js, 0, NULL);
+        if (!js->threads[i]) {
+#else
         if (pthread_create(&js->threads[i], NULL, worker_main, js) != 0) {
+#endif
             HR_WARN("jobs", "failed to start worker %u", i);
             js->worker_count = i;
             break;
@@ -140,13 +223,20 @@ void hr_jobs_shutdown(HrJobSystem* js) {
     if (!js) return;
     hr_jobs_wait_idle(js);
     atomic_store(&js->stop, true);
-    pthread_mutex_lock(&js->lock);
-    pthread_cond_broadcast(&js->work_cv);
-    pthread_mutex_unlock(&js->lock);
-    for (u32 i = 0; i < js->worker_count; ++i) pthread_join(js->threads[i], NULL);
-    pthread_mutex_destroy(&js->lock);
-    pthread_cond_destroy(&js->work_cv);
-    pthread_cond_destroy(&js->done_cv);
+    mutex_lock(&js->lock);
+    cond_broadcast(&js->work_cv);
+    mutex_unlock(&js->lock);
+    for (u32 i = 0; i < js->worker_count; ++i) {
+#if defined(_WIN32)
+        WaitForSingleObject(js->threads[i], INFINITE);
+        CloseHandle(js->threads[i]);
+#else
+        pthread_join(js->threads[i], NULL);
+#endif
+    }
+    mutex_destroy(&js->lock);
+    cond_destroy(&js->work_cv);
+    cond_destroy(&js->done_cv);
     hr_free(js);
 }
 
@@ -169,35 +259,24 @@ void hr_jobs_parallel_for(HrJobSystem* js, u32 count, u32 batch_size,
         t.end = HR_MIN(count, t.begin + batch_size);
         if (!queue_push(js, t)) {
             run_task(&t);
-            if (atomic_fetch_sub_explicit(&js->pending, 1, memory_order_acq_rel) == 1) {
-                pthread_mutex_lock(&js->lock);
-                pthread_cond_broadcast(&js->done_cv);
-                pthread_mutex_unlock(&js->lock);
-            }
+            task_complete(js);
         }
     }
 
-    /* caller helps drain the queue */
+    /* The calling thread helps drain the queue so a single-core machine and a
+     * saturated worker pool both make progress. */
     for (;;) {
         if (atomic_load_explicit(&js->pending, memory_order_acquire) == 0) break;
         HrTask t;
         if (queue_pop(js, &t)) {
             run_task(&t);
-            if (atomic_fetch_sub_explicit(&js->pending, 1, memory_order_acq_rel) == 1) {
-                pthread_mutex_lock(&js->lock);
-                pthread_cond_broadcast(&js->done_cv);
-                pthread_mutex_unlock(&js->lock);
-            }
+            task_complete(js);
         } else {
-            pthread_mutex_lock(&js->lock);
+            mutex_lock(&js->lock);
             while (atomic_load_explicit(&js->pending, memory_order_acquire) != 0) {
-                struct timespec ts;
-                clock_gettime(CLOCK_REALTIME, &ts);
-                ts.tv_nsec += 1000000L;
-                if (ts.tv_nsec >= 1000000000L) { ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
-                pthread_cond_timedwait(&js->done_cv, &js->lock, &ts);
+                cond_timedwait_ms(&js->done_cv, &js->lock, 1);
             }
-            pthread_mutex_unlock(&js->lock);
+            mutex_unlock(&js->lock);
             break;
         }
     }
@@ -225,16 +304,12 @@ void hr_jobs_wait_idle(HrJobSystem* js) {
         HrTask t;
         if (queue_pop(js, &t)) {
             run_task(&t);
-            if (atomic_fetch_sub_explicit(&js->pending, 1, memory_order_acq_rel) == 1) {
-                pthread_mutex_lock(&js->lock);
-                pthread_cond_broadcast(&js->done_cv);
-                pthread_mutex_unlock(&js->lock);
-            }
+            task_complete(js);
         } else {
-            pthread_mutex_lock(&js->lock);
+            mutex_lock(&js->lock);
             if (atomic_load_explicit(&js->pending, memory_order_acquire) != 0)
-                pthread_cond_wait(&js->done_cv, &js->lock);
-            pthread_mutex_unlock(&js->lock);
+                cond_wait(&js->done_cv, &js->lock);
+            mutex_unlock(&js->lock);
         }
     }
 }

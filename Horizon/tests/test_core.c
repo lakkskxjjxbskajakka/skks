@@ -8,6 +8,8 @@
 #include "horizon/scene.h"
 #include "horizon/mesh.h"
 #include "horizon/textures.h"
+#include "horizon/physics.h"
+#include "horizon/animation.h"
 
 #include <stdatomic.h>
 
@@ -302,6 +304,173 @@ static void test_textures(void) {
     hr_image_free(&set.orm);
 }
 
+static void test_physics(void) {
+    HrPhysicsWorld* w = hr_physics_create(v3(0, -9.81f, 0), 64);
+    CHECK(w != NULL);
+
+    HrBodyDesc ground;
+    memset(&ground, 0, sizeof(ground));
+    ground.type = HR_BODY_STATIC;
+    ground.shape = HR_SHAPE_PLANE;
+    ground.position = v3(0, 0, 0);
+    ground.plane_normal = v3(0, 1, 0);
+    ground.friction = 0.6f;
+    ground.layer = 1;
+    u32 ground_body = hr_physics_add_body(w, &ground);
+    CHECK(ground_body != 0);
+
+    HrBodyDesc sphere;
+    memset(&sphere, 0, sizeof(sphere));
+    sphere.type = HR_BODY_DYNAMIC;
+    sphere.shape = HR_SHAPE_SPHERE;
+    sphere.position = v3(0, 5, 0);
+    sphere.radius = 0.5f;
+    sphere.mass = 1.0f;
+    sphere.restitution = 0.0f;
+    sphere.friction = 0.5f;
+    sphere.layer = 2;
+    sphere.user = 77;
+    u32 ball = hr_physics_add_body(w, &sphere);
+    CHECK(ball != 0);
+
+    for (int i = 0; i < 180; ++i) hr_physics_step(w, 1.0f / 60.0f);
+    HrBodyState st;
+    CHECK(hr_physics_get_body(w, ball, &st));
+    CHECK_NEAR(st.position.y, 0.5f, 0.1f);
+    CHECK(fabsf(st.linear_velocity.y) < 0.5f);
+
+    HrRayHit hit;
+    CHECK(hr_physics_raycast(w, v3(0, 5, 0), v3(0, -1, 0), 10.0f, 0, &hit));
+    CHECK_NEAR(hit.distance, 4.0f, 0.1f);
+    CHECK(hit.user == 77);
+    CHECK(!hr_physics_raycast(w, v3(0, 5, 0), v3(0, -1, 0), 10.0f, 1, &hit) ||
+          hit.user != 77);
+
+    u32 found[8];
+    u32 n = hr_physics_query_sphere(w, v3(0, 0.5f, 0), 0.75f, 2, found, 8);
+    CHECK(n == 1 && found[0] == ball);
+
+    hr_physics_apply_impulse(w, ball, v3(2, 0, 0), st.position);
+    CHECK(hr_physics_get_body(w, ball, &st));
+    CHECK(st.linear_velocity.x > 1.0f);
+
+    hr_physics_remove_body(w, ball);
+    CHECK(!hr_physics_get_body(w, ball, &st));
+    CHECK(hr_physics_body_count(w) == 1);
+
+    /* Sphere/sphere impulse exchange. */
+    HrPhysicsWorld* w2 = hr_physics_create(v3(0, 0, 0), 16);
+    HrBodyDesc s0 = sphere;
+    s0.position = v3(-0.6f, 0, 0);
+    s0.linear_velocity = v3(1, 0, 0);
+    s0.layer = 1;
+    s0.restitution = 0.5f;
+    HrBodyDesc s1 = sphere;
+    s1.position = v3(0.6f, 0, 0);
+    s1.linear_velocity = v3(-1, 0, 0);
+    s1.layer = 1;
+    s1.restitution = 0.5f;
+    u32 a = hr_physics_add_body(w2, &s0);
+    u32 b = hr_physics_add_body(w2, &s1);
+    for (int i = 0; i < 30; ++i) hr_physics_step(w2, 1.0f / 60.0f);
+    HrBodyState sa, sb;
+    CHECK(hr_physics_get_body(w2, a, &sa));
+    CHECK(hr_physics_get_body(w2, b, &sb));
+    CHECK(sa.linear_velocity.x < 0.0f);
+    CHECK(sb.linear_velocity.x > 0.0f);
+    CHECK(hr_physics_contact_count(w2) >= 1 || v3_dist(sa.position, sb.position) >= 1.0f);
+    hr_physics_destroy(w2);
+
+    /* Box resting on a plane. */
+    HrPhysicsWorld* w3 = hr_physics_create(v3(0, -9.81f, 0), 16);
+    HrBodyDesc gp = ground;
+    hr_physics_add_body(w3, &gp);
+    HrBodyDesc box;
+    memset(&box, 0, sizeof(box));
+    box.type = HR_BODY_DYNAMIC;
+    box.shape = HR_SHAPE_BOX;
+    box.position = v3(0, 3, 0);
+    box.half_extents = v3(0.5f, 0.5f, 0.5f);
+    box.mass = 1.0f;
+    box.friction = 0.6f;
+    box.layer = 1;
+    u32 bx = hr_physics_add_body(w3, &box);
+    for (int i = 0; i < 240; ++i) hr_physics_step(w3, 1.0f / 60.0f);
+    HrBodyState bs;
+    CHECK(hr_physics_get_body(w3, bx, &bs));
+    CHECK_NEAR(bs.position.y, 0.5f, 0.15f);
+    hr_physics_destroy(w3);
+
+    hr_physics_destroy(w);
+}
+
+static void test_animation(void) {
+    HrSkeleton sk;
+    hr_skeleton_init(&sk);
+    i32 root = hr_skeleton_add_joint(&sk, "root", -1, mat4_identity());
+    i32 child = hr_skeleton_add_joint(&sk, "child", root, mat4_identity());
+    CHECK(root == 0 && child == 1);
+    CHECK(hr_skeleton_find_joint(&sk, "child") == child);
+    CHECK(hr_skeleton_add_joint(&sk, "bad", 99, mat4_identity()) == -1);
+
+    HrAnimationClip* walk = hr_animation_clip_create("walk", 1.0f, true);
+    CHECK(walk != NULL);
+    HrAnimTrack* track = hr_animation_clip_add_track(walk, root);
+    CHECK(track != NULL);
+    hr_anim_track_add_key(track, 0.0f, v3(0, 0, 0), quat_identity(), v3s(1));
+    hr_anim_track_add_key(track, 1.0f, v3(10, 0, 0), quat_identity(), v3s(1));
+
+    HrPose pose;
+    CHECK(hr_animation_sample(walk, 0.5f, &pose));
+    CHECK(pose.joint_count == 1);
+    CHECK_NEAR(pose.translation[0].x, 5.0f, 1e-4f);
+    CHECK(hr_animation_sample(walk, 1.25f, &pose));
+    CHECK_NEAR(pose.translation[0].x, 2.5f, 1e-4f);
+
+    HrPose bind;
+    hr_pose_bind(&sk, &bind);
+    CHECK(bind.joint_count == 2);
+    HrPose other = bind;
+    other.translation[0] = v3(10, 0, 0);
+    HrPose mixed;
+    hr_pose_blend(&bind, &other, 0.25f, &mixed);
+    CHECK_NEAR(mixed.translation[0].x, 2.5f, 1e-4f);
+
+    HrPose world_pose = bind;
+    world_pose.translation[0] = v3(1, 0, 0);
+    world_pose.translation[1] = v3(0, 2, 0);
+    Mat4 palette[HR_ANIM_MAX_JOINTS];
+    hr_pose_palette(&sk, &world_pose, palette);
+    Vec3 wp = mat4_mul_point(palette[1], v3(0, 0, 0));
+    CHECK_NEAR(wp.x, 1.0f, 1e-5f);
+    CHECK_NEAR(wp.y, 2.0f, 1e-5f);
+
+    HrAnimationClip* run = hr_animation_clip_create("run", 1.0f, true);
+    HrAnimTrack* rt = hr_animation_clip_add_track(run, root);
+    hr_anim_track_add_key(rt, 0.0f, v3(0, 0, 0), quat_identity(), v3s(1));
+    hr_anim_track_add_key(rt, 1.0f, v3(20, 0, 0), quat_identity(), v3s(1));
+
+    HrAnimator anim;
+    hr_animator_init(&anim, &sk);
+    hr_animator_play(&anim, walk, 0.0f);
+    hr_animator_update(&anim, 0.5f);
+    hr_animator_pose(&anim, &pose);
+    CHECK_NEAR(pose.translation[0].x, 5.0f, 1e-4f);
+
+    hr_animator_play(&anim, run, 1.0f);
+    hr_animator_update(&anim, 0.25f);
+    CHECK_NEAR(anim.blend, 0.25f, 1e-4f);
+    hr_animator_pose(&anim, &pose);
+    CHECK_NEAR(pose.translation[0].x, 6.875f, 1e-3f);
+    hr_animator_update(&anim, 1.0f);
+    CHECK(anim.previous == NULL);
+    hr_animator_pose(&anim, &pose);
+    CHECK_NEAR(pose.translation[0].x, 5.0f, 1e-4f);
+
+    hr_animation_clip_destroy(walk);
+    hr_animation_clip_destroy(run);
+}
+
 static void test_profiler(void) {
     hr_prof_enabled = 1;
     hr_prof_frame_begin();
@@ -322,6 +491,8 @@ int main(void) {
     test_scene();
     test_mesh();
     test_textures();
+    test_physics();
+    test_animation();
     test_profiler();
 
     printf("%d checks, %d failures\n", g_checks, g_failures);

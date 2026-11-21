@@ -137,6 +137,7 @@ Mat4 mat4_trs(Vec3 translation, Vec3 euler_xyz, Vec3 scale);
 
 /* ---------------------------------------------------------------- quat */
 HR_INLINE Quat quat_identity(void) { Quat q = {{0, 0, 0, 1}}; return q; }
+HR_INLINE Quat quat_conj(Quat q) { Quat r = {{-q.x, -q.y, -q.z, q.w}}; return r; }
 Quat quat_axis_angle(Vec3 axis, float radians);
 Quat quat_mul(Quat a, Quat b);
 Quat quat_norm(Quat q);
